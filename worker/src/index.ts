@@ -351,7 +351,7 @@ EVENT DETAILS:
 - Name: Baby Shower Maria Luísa
 - Date: Friday, 11 April 2025
 - Time: 15h00 – 19h00
-- Venue: Messe de Évora, Évora, Portugal
+- Venue: Messe Militar de Évora, Évora, Portugal
 - Google Maps: https://maps.google.com?q=Messe+de+Évora,+Évora,+Portugal
 - Directions: Each guest's route will vary — suggest they use Google Maps or Waze with "Messe de Évora" as the destination.
 
@@ -384,7 +384,7 @@ Guidelines:
   ];
 
   const aiResponse = await env.AI.run(
-    "@cf/meta/llama-3-8b-instruct" as Parameters<typeof env.AI.run>[0],
+    "@cf/meta/llama-3.3-70b-instruct-fp8-fast" as Parameters<typeof env.AI.run>[0],
     {
       messages: aiMessages,
       max_tokens: 350,
