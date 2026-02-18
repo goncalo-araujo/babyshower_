@@ -303,27 +303,27 @@ async function handleChat(
     return jsonResponse({ error: "message is required" }, 400, origin);
   }
 
-  // --- Rate limiting: 10 messages per IP per day ---
-  const ip = getIP(request);
-  const day = todayUTC();
+  // --- Rate limiting: disabled for testing, re-enable before sharing ---
+  // const ip = getIP(request);
+  // const day = todayUTC();
 
-  const row = await env.DB.prepare(
-    "SELECT count FROM chat_rate_limit WHERE ip=? AND day=?"
-  ).bind(ip, day).first<{ count: number }>();
+  // const row = await env.DB.prepare(
+  //   "SELECT count FROM chat_rate_limit WHERE ip=? AND day=?"
+  // ).bind(ip, day).first<{ count: number }>();
 
-  const currentCount = row?.count ?? 0;
-  if (currentCount >= CHAT_DAILY_LIMIT) {
-    return jsonResponse(
-      { error: "Limite diário de mensagens atingido. Tenta novamente amanhã." },
-      429,
-      origin
-    );
-  }
+  // const currentCount = row?.count ?? 0;
+  // if (currentCount >= CHAT_DAILY_LIMIT) {
+  //   return jsonResponse(
+  //     { error: "Limite diário de mensagens atingido. Tenta novamente amanhã." },
+  //     429,
+  //     origin
+  //   );
+  // }
 
-  await env.DB.prepare(
-    `INSERT INTO chat_rate_limit (ip, day, count) VALUES (?, ?, 1)
-     ON CONFLICT(ip, day) DO UPDATE SET count = count + 1`
-  ).bind(ip, day).run();
+  // await env.DB.prepare(
+  //   `INSERT INTO chat_rate_limit (ip, day, count) VALUES (?, ?, 1)
+  //    ON CONFLICT(ip, day) DO UPDATE SET count = count + 1`
+  // ).bind(ip, day).run();
 
   // Fetch current gift state for AI context
   const { results: items } = await env.DB.prepare(
