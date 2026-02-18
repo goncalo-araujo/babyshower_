@@ -583,17 +583,26 @@ Use "" for missing message. Never invent IDs. Output only the JSON or null.`,
   return jsonResponse({ reply, contribution_pending: contributionPending, cancellation_pending: cancellationPending }, 200, origin);
 }
 
-async function handleResetContributions(
+async function handleAdminDeleteContribution(
   request: Request,
   env: Env,
-  origin: string
+  origin: string,
+  id: number
 ): Promise<Response> {
   if (!isAdmin(request, env)) {
     return jsonResponse({ error: "Unauthorized" }, 401, origin);
   }
+  const contribution = await env.DB.prepare(
+    "SELECT id, item_id, amount FROM contributions WHERE id=?"
+  ).bind(id).first<{ id: number; item_id: number; amount: number }>();
+  if (!contribution) {
+    return jsonResponse({ error: "Not found" }, 404, origin);
+  }
   await env.DB.batch([
-    env.DB.prepare("DELETE FROM contributions"),
-    env.DB.prepare("UPDATE items SET price_raised = 0, is_funded = 0"),
+    env.DB.prepare("DELETE FROM contributions WHERE id=?").bind(id),
+    env.DB.prepare(
+      `UPDATE items SET price_raised = MAX(0, price_raised - ?), is_funded = 0 WHERE id=?`
+    ).bind(contribution.amount, contribution.item_id),
   ]);
   return jsonResponse({ success: true }, 200, origin);
 }
@@ -692,8 +701,8 @@ export default {
       if (method === "POST" && pathname === "/api/contributions") {
         return await handleCreateContribution(request, env, origin);
       }
-      if (method === "DELETE" && pathname === "/api/contributions") {
-        return await handleResetContributions(request, env, origin);
+      if (method === "DELETE" && /^\/api\/contributions\/\d+$/.test(pathname)) {
+        return await handleAdminDeleteContribution(request, env, origin, extractId(pathname));
       }
       if (method === "GET" && pathname === "/api/my-contributions") {
         return await handleGetMyContributions(request, env, origin);
