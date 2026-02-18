@@ -8,7 +8,7 @@ A modern, minimalist baby shower website with a live gift registry, contribution
 Frontend (static)          Backend (serverless)
 ─────────────────          ────────────────────
 GitHub Pages               Cloudflare Worker
-github.io/babyshower/  ←── /api/items
+github.io/babyshower_/ ←── /api/items
                            /api/contributions
                            /api/chat (Workers AI)
                            /api/admin/auth
@@ -126,7 +126,7 @@ git commit -m "feat: add baby shower app"
 git push origin main
 ```
 
-The site will be live at `https://goncalo-araujo.github.io/babyshower/` within a minute.
+The site will be live at `https://goncalo-araujo.github.io/babyshower_` within a minute.
 
 ---
 
