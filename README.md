@@ -19,7 +19,7 @@ github.io/babyshower_/ ←── /api/items
 
 **Live URLs (after deployment):**
 - Main site: `https://goncalo-araujo.github.io/babyshower_`
-- Worker API: `https://babyshower-worker.YOUR_SUBDOMAIN.workers.dev`
+- Worker API: `https://babyshower-worker.goncalo-araujo.workers.dev`
 
 ---
 
