@@ -7,7 +7,7 @@
 // =============================================================
 // Local dev:  'http://localhost:8787'
 // Production: replace YOUR_SUBDOMAIN with your Cloudflare subdomain (e.g. goncaloaraujo)
-const API_BASE = 'https://babyshower-worker.goncaloaraujo.workers.dev';
+const API_BASE = 'https://babyshower-worker.goncalo-araujo.workers.dev';
 
 // =============================================================
 // GUEST AUTH — password stored in sessionStorage for the tab lifetime

@@ -5,7 +5,7 @@
 // =============================================================
 // Local dev:  'http://localhost:8787'
 // Production: replace YOUR_SUBDOMAIN with your Cloudflare subdomain (e.g. goncaloaraujo)
-const API_BASE = 'http://localhost:8787';
+const API_BASE = 'https://babyshower-worker.goncalo-araujo.workers.dev';
 
 // Admin password stored in memory only — cleared on page reload / logout
 let _adminPassword = null;
