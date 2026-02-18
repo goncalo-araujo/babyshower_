@@ -297,7 +297,10 @@ async function handleChat(
     return jsonResponse({ error: "Unauthorized" }, 401, origin);
   }
 
-  const body = (await request.json()) as { message?: string };
+  const body = (await request.json()) as {
+    message?: string;
+    history?: Array<{ role: string; content: string }>;
+  };
   const message = sanitise(body.message, MAX_MESSAGE_LENGTH);
   if (!message) {
     return jsonResponse({ error: "message is required" }, 400, origin);
@@ -335,14 +338,8 @@ async function handleChat(
     items.length > 0
       ? items
           .map((item) => {
-            const pct =
-              item.price_total > 0
-                ? Math.round((item.price_raised / item.price_total) * 100)
-                : 0;
-            const status = item.is_funded
-              ? "FULLY FUNDED"
-              : `${pct}% funded (€${item.price_raised.toFixed(2)} of €${item.price_total.toFixed(2)} raised)`;
-            return `- ${item.title}: ${item.description} | Price: €${item.price_total.toFixed(2)} | Status: ${status}`;
+            const status = item.is_funded ? "fully funded" : `€${Number(item.price_raised).toFixed(2)} raised of €${Number(item.price_total).toFixed(2)}`;
+            return `- [ID:${item.id}] ${item.title}: ${item.description} | Price: €${Number(item.price_total).toFixed(2)} | Status: ${status}`;
           })
           .join("\n")
       : "No gift items have been added yet.";
@@ -358,35 +355,88 @@ EVENT DETAILS:
 - Google Maps: https://maps.google.com?q=Messe+de+Évora,+Évora,+Portugal
 - Directions: Each guest's route will vary — suggest they use Google Maps or Waze with "Messe de Évora" as the destination.
 
-GIFT REGISTRY:
+GIFT REGISTRY (each item has an ID in brackets):
 ${giftContext}
+
+CONTRIBUTION FLOW:
+If a guest wants to contribute to a gift via this chat:
+1. Find out which gift they want (use the item ID from the registry above)
+2. Ask for their full name
+3. Ask for the amount in euros (minimum €1)
+4. Optionally ask if they have a message (they can skip)
+5. Once you have all three (item, name, amount), add this marker on its own line at the very end of your reply — nothing after it:
+[CONTRIBUTION:{"item_id":ITEM_ID,"name":"NAME","amount":AMOUNT,"message":"MESSAGE"}]
+Replace ITEM_ID with the numeric id, NAME with their name, AMOUNT with a number, MESSAGE with their message or leave it empty.
+NEVER invent item IDs — only use IDs that appear in the GIFT REGISTRY above.
+Do not add the marker until you have confirmed item, name AND amount.
 
 Guidelines:
 - Be warm, brief, and helpful. Keep responses under 120 words.
 - IMPORTANT: Always respond in European Portuguese (Portugal). Never use Brazilian Portuguese vocabulary or spelling. Use "autocarro" not "ônibus", "telemóvel" not "celular", "casa de banho" not "banheiro", etc.
 - Answer questions about the event: date, time, location, how to get there, parking, etc.
 - When asked for gift recommendations, prioritise items that are NOT yet fully funded.
-- If asked how to contribute, tell guests to use the "Contribuir" button on any gift card, or scroll down to the contribution form.
 - Do not discuss topics unrelated to the baby shower, the event, or the gift registry.
 - If no gifts are listed yet, say the registry is being prepared and to check back soon.
 - Always respond in European Portuguese (Portugal). This is mandatory.`;
 
+  // Build message history (last 10 turns to stay within token limits)
+  const history = (body.history ?? []).slice(-10);
+  const aiMessages = [
+    { role: "system" as const, content: systemPrompt },
+    ...history.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
+    { role: "user" as const, content: message },
+  ];
+
   const aiResponse = await env.AI.run(
     "@cf/meta/llama-3-8b-instruct" as Parameters<typeof env.AI.run>[0],
     {
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: message },
-      ],
-      max_tokens: 300,
+      messages: aiMessages,
+      max_tokens: 350,
     }
   );
 
-  const reply =
+  const rawReply =
     (aiResponse as { response?: string }).response ??
     "Estou com dificuldades em responder agora. Por favor tenta novamente!";
 
-  return jsonResponse({ reply }, 200, origin);
+  // Parse contribution marker
+  const markerRegex = /\[CONTRIBUTION:(\{[^\]]+\})\]/s;
+  const markerMatch = rawReply.match(markerRegex);
+  let contributionPending: {
+    item_id: number;
+    item_title: string;
+    name: string;
+    amount: number;
+    message: string;
+  } | null = null;
+
+  let reply = rawReply;
+
+  if (markerMatch) {
+    try {
+      const data = JSON.parse(markerMatch[1]) as {
+        item_id?: number;
+        name?: string;
+        amount?: number;
+        message?: string;
+      };
+      const item = items.find((i) => i.id === Number(data.item_id));
+      if (item && data.name && Number(data.amount) > 0 && !item.is_funded) {
+        contributionPending = {
+          item_id: item.id,
+          item_title: item.title,
+          name: String(data.name),
+          amount: Number(data.amount),
+          message: String(data.message ?? ""),
+        };
+      }
+    } catch {
+      // ignore parse errors
+    }
+    reply = rawReply.replace(markerRegex, "").trim();
+  }
+
+  return jsonResponse({ reply, contribution_pending: contributionPending }, 200, origin);
 }
 
 async function handleAdminAuth(

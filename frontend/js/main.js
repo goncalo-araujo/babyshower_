@@ -350,6 +350,9 @@ function initChatbot() {
   const messages = document.getElementById('chatbot-messages');
   if (!toggle || !panel || !chatForm || !chatInput || !messages) return;
 
+  // Conversation history sent to worker for context
+  const chatHistory = [];
+
   function openPanel() {
     panel.hidden = false;
     toggle.setAttribute('aria-expanded', 'true');
@@ -381,6 +384,7 @@ function initChatbot() {
     if (!userMsg) return;
 
     appendMessage('user', userMsg);
+    chatHistory.push({ role: 'user', content: userMsg });
     chatInput.value = '';
     chatInput.disabled = true;
 
@@ -390,14 +394,21 @@ function initChatbot() {
       const res = await fetch(`${API_BASE}/api/chat`, {
         method: 'POST',
         headers: guestHeaders(),
-        body: JSON.stringify({ message: userMsg }),
+        body: JSON.stringify({ message: userMsg, history: chatHistory.slice(-10) }),
       });
       const json = await res.json();
       typingEl.remove();
       if (res.status === 429) {
         appendMessage('bot', json.error || 'Limite de mensagens atingido para hoje. Tenta amanhã!');
       } else {
-        appendMessage('bot', json.reply || 'Desculpa, não consegui obter uma resposta agora. Tenta novamente.');
+        const botText = json.reply || 'Desculpa, não consegui obter uma resposta agora. Tenta novamente.';
+        appendMessage('bot', botText);
+        chatHistory.push({ role: 'assistant', content: botText });
+
+        // Contribution confirmation card
+        if (json.contribution_pending) {
+          appendContributionCard(json.contribution_pending);
+        }
       }
     } catch (err) {
       typingEl.remove();
@@ -408,6 +419,57 @@ function initChatbot() {
       chatInput.focus();
     }
   });
+
+  function appendContributionCard(contribution) {
+    const card = document.createElement('div');
+    card.className = 'chatbot__contribution-card';
+    card.innerHTML = `
+      <p class="chatbot__contribution-title">Confirmar contribuição</p>
+      <ul class="chatbot__contribution-details">
+        <li><strong>Presente:</strong> ${escHtml(contribution.item_title)}</li>
+        <li><strong>Nome:</strong> ${escHtml(contribution.name)}</li>
+        <li><strong>Valor:</strong> €${Number(contribution.amount).toFixed(2)}</li>
+        ${contribution.message ? `<li><strong>Mensagem:</strong> ${escHtml(contribution.message)}</li>` : ''}
+      </ul>
+      <div class="chatbot__contribution-actions">
+        <button class="btn btn--primary btn--sm chatbot__confirm-btn">Confirmar ✓</button>
+        <button class="btn btn--outline btn--sm chatbot__cancel-btn">Cancelar</button>
+      </div>
+    `;
+    messages.appendChild(card);
+    scrollMessages();
+
+    card.querySelector('.chatbot__confirm-btn').addEventListener('click', async () => {
+      card.querySelector('.chatbot__contribution-actions').innerHTML =
+        '<span style="font-size:var(--text-sm);color:var(--color-text-muted)">A processar…</span>';
+      try {
+        const res = await fetch(`${API_BASE}/api/contributions`, {
+          method: 'POST',
+          headers: guestHeaders(),
+          body: JSON.stringify({
+            item_id: contribution.item_id,
+            contributor_name: contribution.name,
+            amount: contribution.amount,
+            message: contribution.message,
+          }),
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || 'Erro ao processar');
+        card.querySelector('.chatbot__contribution-actions').innerHTML =
+          '<span style="color:var(--color-funded);font-weight:600">✓ Contribuição registada! Obrigado 🎁</span>';
+        await loadGifts();
+      } catch (err) {
+        card.querySelector('.chatbot__contribution-actions').innerHTML =
+          `<span style="color:var(--color-error);font-size:var(--text-sm)">${escHtml(err.message)}</span>`;
+      }
+    });
+
+    card.querySelector('.chatbot__cancel-btn').addEventListener('click', () => {
+      card.querySelector('.chatbot__contribution-actions').innerHTML =
+        '<span style="font-size:var(--text-sm);color:var(--color-text-muted)">Contribuição cancelada.</span>';
+      appendMessage('bot', 'Sem problema! Se quiseres contribuir mais tarde, usa o botão "Contribuir" em qualquer presente. 😊');
+    });
+  }
 
   function appendMessage(type, text) {
     const el = document.createElement('div');
