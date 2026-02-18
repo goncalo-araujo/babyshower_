@@ -355,20 +355,16 @@ EVENT DETAILS:
 - Google Maps: https://maps.google.com?q=Messe+de+Évora,+Évora,+Portugal
 - Directions: Each guest's route will vary — suggest they use Google Maps or Waze with "Messe de Évora" as the destination.
 
-GIFT REGISTRY (each item has an ID in brackets):
+GIFT REGISTRY:
 ${giftContext}
 
 CONTRIBUTION FLOW:
-If a guest wants to contribute to a gift via this chat:
-1. Find out which gift they want (use the item ID from the registry above)
-2. Ask for their full name
-3. Ask for the amount in euros (minimum €1)
-4. Optionally ask if they have a message (they can skip)
-5. Once you have all three (item, name, amount), add this marker on its own line at the very end of your reply — nothing after it:
-[CONTRIBUTION:{"item_id":ITEM_ID,"name":"NAME","amount":AMOUNT,"message":"MESSAGE"}]
-Replace ITEM_ID with the numeric id, NAME with their name, AMOUNT with a number, MESSAGE with their message or leave it empty.
-NEVER invent item IDs — only use IDs that appear in the GIFT REGISTRY above.
-Do not add the marker until you have confirmed item, name AND amount.
+If a guest wants to contribute to a gift via this chat, collect the following in a friendly conversation:
+1. Which gift they want (refer to names, not IDs)
+2. Their full name
+3. The amount in euros (minimum €1)
+4. Optionally a personal message (they can skip)
+Once you have item + name + amount, give a warm summary of the contribution details and tell the guest that a confirmation card will appear for them to confirm.
 
 Guidelines:
 - Be warm, brief, and helpful. Keep responses under 120 words.
@@ -399,9 +395,46 @@ Guidelines:
     (aiResponse as { response?: string }).response ??
     "Estou com dificuldades em responder agora. Por favor tenta novamente!";
 
-  // Parse contribution marker
-  const markerRegex = /\[CONTRIBUTION:(\{[^\]]+\})\]/s;
-  const markerMatch = rawReply.match(markerRegex);
+  // Strip any accidental marker the main AI may emit anyway
+  const reply = rawReply.replace(/\[CONTRIBUTION:[^\]]*\]/gs, "").trim();
+
+  // --- Second AI call: structured extraction ---
+  // Ask a separate focused call to extract contribution data from the full conversation.
+  // This is far more reliable than asking the conversational AI to emit a JSON marker.
+  const fullConversationText = [
+    ...history.map((m) => `${m.role === "user" ? "Convidado" : "Assistente"}: ${m.content}`),
+    `Convidado: ${message}`,
+    `Assistente: ${reply}`,
+  ].join("\n");
+
+  const itemList = items.map((i) => `${i.id}: ${i.title}`).join("\n");
+
+  const extractorMessages = [
+    {
+      role: "system" as const,
+      content: `You extract gift contribution data from a conversation. Respond ONLY in valid JSON or the single word null.
+Available gift IDs:\n${itemList}
+Rules:
+- If the conversation shows the guest has provided ALL of: (1) which gift, (2) their name, (3) an amount in euros — respond with ONLY this JSON on one line (no extra text):
+{"item_id":<number>,"name":"<string>","amount":<number>,"message":"<string>"}
+- Use "" for message if not provided.
+- If ANY required field (gift, name, amount) is missing or unclear, respond with only: null
+- Do not add any explanation or extra text.`,
+    },
+    {
+      role: "user" as const,
+      content: fullConversationText,
+    },
+  ];
+
+  const extractorResponse = await env.AI.run(
+    "@cf/meta/llama-3-8b-instruct" as Parameters<typeof env.AI.run>[0],
+    { messages: extractorMessages, max_tokens: 80 }
+  );
+
+  const extractorRaw =
+    (extractorResponse as { response?: string }).response ?? "null";
+
   let contributionPending: {
     item_id: number;
     item_title: string;
@@ -410,11 +443,10 @@ Guidelines:
     message: string;
   } | null = null;
 
-  let reply = rawReply;
-
-  if (markerMatch) {
-    try {
-      const data = JSON.parse(markerMatch[1]) as {
+  try {
+    const jsonMatch = extractorRaw.match(/\{[\s\S]*?\}/);
+    if (jsonMatch) {
+      const data = JSON.parse(jsonMatch[0]) as {
         item_id?: number;
         name?: string;
         amount?: number;
@@ -430,10 +462,9 @@ Guidelines:
           message: String(data.message ?? ""),
         };
       }
-    } catch {
-      // ignore parse errors
     }
-    reply = rawReply.replace(markerRegex, "").trim();
+  } catch {
+    // ignore parse errors — contributionPending stays null
   }
 
   return jsonResponse({ reply, contribution_pending: contributionPending }, 200, origin);
