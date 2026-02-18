@@ -347,26 +347,6 @@ document.getElementById('refresh-contributions-btn').addEventListener('click', (
   loadContributions();
 });
 
-document.getElementById('reset-contributions-btn').addEventListener('click', async () => {
-  if (!confirm('Tens a certeza? Isto apaga TODAS as contribuições e repõe o progresso de todos os presentes a zero. Esta ação não pode ser desfeita.')) return;
-  const btn = document.getElementById('reset-contributions-btn');
-  btn.disabled = true;
-  btn.textContent = 'A resetar…';
-  try {
-    const res = await fetch(`${API_BASE}/api/contributions`, {
-      method: 'DELETE',
-      headers: adminHeaders(),
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    await loadContributions();
-  } catch (err) {
-    alert('Erro ao resetar: ' + err.message);
-  } finally {
-    btn.disabled = false;
-    btn.textContent = '🗑 Resetar tudo';
-  }
-});
-
 async function loadContributions() {
   const wrap = document.getElementById('contributions-table-wrap');
   wrap.innerHTML = '<div style="padding:var(--space-8);text-align:center;color:var(--color-text-muted)">A carregar&hellip;</div>';
@@ -402,7 +382,7 @@ function renderContributionsTable(contributions) {
       day: '2-digit', month: 'short', year: 'numeric'
     });
     return `
-      <tr>
+      <tr data-id="${c.id}">
         <td style="color:var(--color-text-muted);font-size:var(--text-xs)">#${c.id}</td>
         <td>${escHtml(c.item_title ?? '—')}</td>
         <td><strong>${escHtml(c.contributor_name)}</strong></td>
@@ -411,6 +391,14 @@ function renderContributionsTable(contributions) {
           ${c.message ? escHtml(c.message) : '<em style="opacity:0.5">Sem mensagem</em>'}
         </td>
         <td style="white-space:nowrap;font-size:var(--text-sm);color:var(--color-text-muted)">${date}</td>
+        <td>
+          <button class="btn btn--outline btn--sm delete-contribution-btn"
+            data-id="${c.id}"
+            style="color:var(--color-error);border-color:var(--color-error)"
+            title="Apagar contribuição">
+            🗑
+          </button>
+        </td>
       </tr>
     `;
   }).join('');
@@ -430,11 +418,36 @@ function renderContributionsTable(contributions) {
           <th>Valor</th>
           <th>Mensagem</th>
           <th>Data</th>
+          <th></th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>
     </table>
   `;
+
+  wrap.querySelectorAll('.delete-contribution-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+      if (!confirm('Apagar esta contribuição? O valor será subtraído do progresso do presente.')) return;
+      btn.disabled = true;
+      btn.textContent = '…';
+      try {
+        const res = await fetch(`${API_BASE}/api/contributions/${id}`, {
+          method: 'DELETE',
+          headers: adminHeaders(),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const row = wrap.querySelector(`tr[data-id="${id}"]`);
+        if (row) row.remove();
+        // Update total in summary
+        await loadContributions();
+      } catch (err) {
+        alert('Erro ao apagar: ' + err.message);
+        btn.disabled = false;
+        btn.textContent = '🗑';
+      }
+    });
+  });
 }
 
 // =============================================================
