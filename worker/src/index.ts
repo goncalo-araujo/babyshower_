@@ -393,10 +393,27 @@ async function handleAdminAuth(
   env: Env,
   origin: string
 ): Promise<Response> {
+  const ip = request.headers.get("CF-Connecting-IP") ?? "unknown";
+  const day = new Date().toISOString().slice(0, 10);
+  const row = await env.DB.prepare(
+    "SELECT count FROM chat_rate_limit WHERE ip=? AND day=?"
+  ).bind(`admin:${ip}`, day).first<{ count: number }>();
+  const attempts = row?.count ?? 0;
+  if (attempts >= 10) {
+    return jsonResponse({ error: "Too many attempts. Try again tomorrow." }, 429, origin);
+  }
   const body = (await request.json()) as { password?: string };
   if (body.password === env.ADMIN_PASSWORD) {
+    // Reset counter on success
+    await env.DB.prepare(
+      "DELETE FROM chat_rate_limit WHERE ip=? AND day=?"
+    ).bind(`admin:${ip}`, day).run();
     return jsonResponse({ success: true }, 200, origin);
   }
+  // Increment failed attempt counter
+  await env.DB.prepare(
+    "INSERT INTO chat_rate_limit (ip, day, count) VALUES (?, ?, 1) ON CONFLICT(ip, day) DO UPDATE SET count = count + 1"
+  ).bind(`admin:${ip}`, day).run();
   return jsonResponse({ error: "Incorrect password" }, 401, origin);
 }
 
@@ -405,10 +422,25 @@ async function handleGuestAuth(
   env: Env,
   origin: string
 ): Promise<Response> {
+  const ip = request.headers.get("CF-Connecting-IP") ?? "unknown";
+  const day = new Date().toISOString().slice(0, 10);
+  const row = await env.DB.prepare(
+    "SELECT count FROM chat_rate_limit WHERE ip=? AND day=?"
+  ).bind(`guest:${ip}`, day).first<{ count: number }>();
+  const attempts = row?.count ?? 0;
+  if (attempts >= 10) {
+    return jsonResponse({ error: "Too many attempts. Try again tomorrow." }, 429, origin);
+  }
   const body = (await request.json()) as { password?: string };
   if (body.password === env.GUEST_PASSWORD) {
+    await env.DB.prepare(
+      "DELETE FROM chat_rate_limit WHERE ip=? AND day=?"
+    ).bind(`guest:${ip}`, day).run();
     return jsonResponse({ success: true }, 200, origin);
   }
+  await env.DB.prepare(
+    "INSERT INTO chat_rate_limit (ip, day, count) VALUES (?, ?, 1) ON CONFLICT(ip, day) DO UPDATE SET count = count + 1"
+  ).bind(`guest:${ip}`, day).run();
   return jsonResponse({ error: "Palavra-passe incorreta" }, 401, origin);
 }
 
