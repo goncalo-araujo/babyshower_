@@ -27,6 +27,7 @@ interface Contribution {
   id: number;
   item_id: number;
   contributor_name: string;
+  contributor_ip: string | null;
   amount: number;
   message: string;
   created_at: string;
@@ -260,16 +261,18 @@ async function handleCreateContribution(
   const appliedAmount = Math.min(amount, remaining);
   const newRaised = item.price_raised + appliedAmount;
   const isFunded = newRaised >= item.price_total ? 1 : 0;
+  const contributorIp = getIP(request);
 
   await env.DB.batch([
     env.DB.prepare(
-      `INSERT INTO contributions (item_id, contributor_name, amount, message)
-       VALUES (?, ?, ?, ?)`
+      `INSERT INTO contributions (item_id, contributor_name, amount, message, contributor_ip)
+       VALUES (?, ?, ?, ?, ?)`
     ).bind(
       itemId,
       name,
       appliedAmount,
-      sanitise(body.message, MAX_MESSAGE_LENGTH)
+      sanitise(body.message, MAX_MESSAGE_LENGTH),
+      contributorIp
     ),
     env.DB.prepare(
       `UPDATE items SET price_raised=?, is_funded=? WHERE id=?`
@@ -286,6 +289,54 @@ async function handleCreateContribution(
     201,
     origin
   );
+}
+
+async function handleGetMyContributions(
+  request: Request,
+  env: Env,
+  origin: string
+): Promise<Response> {
+  if (!isGuest(request, env) && !isAdmin(request, env)) {
+    return jsonResponse({ error: "Unauthorized" }, 401, origin);
+  }
+  const ip = getIP(request);
+  const { results } = await env.DB.prepare(
+    `SELECT c.id, c.item_id, c.contributor_name, c.amount, c.message, c.created_at,
+            i.title AS item_title
+     FROM contributions c
+     JOIN items i ON c.item_id = i.id
+     WHERE c.contributor_ip = ?
+     ORDER BY c.created_at DESC`
+  ).bind(ip).all<Contribution>();
+  return jsonResponse(results, 200, origin);
+}
+
+async function handleDeleteMyContribution(
+  request: Request,
+  env: Env,
+  origin: string,
+  id: number
+): Promise<Response> {
+  if (!isGuest(request, env) && !isAdmin(request, env)) {
+    return jsonResponse({ error: "Unauthorized" }, 401, origin);
+  }
+  const ip = getIP(request);
+  const contribution = await env.DB.prepare(
+    "SELECT id, item_id, amount FROM contributions WHERE id=? AND contributor_ip=?"
+  ).bind(id, ip).first<{ id: number; item_id: number; amount: number }>();
+  if (!contribution) {
+    return jsonResponse({ error: "Não encontrado" }, 404, origin);
+  }
+  await env.DB.batch([
+    env.DB.prepare("DELETE FROM contributions WHERE id=?").bind(id),
+    env.DB.prepare(
+      `UPDATE items SET
+         price_raised = MAX(0, price_raised - ?),
+         is_funded = 0
+       WHERE id=?`
+    ).bind(contribution.amount, contribution.item_id),
+  ]);
+  return jsonResponse({ success: true }, 200, origin);
 }
 
 async function handleChat(
@@ -563,6 +614,12 @@ export default {
       }
       if (method === "POST" && pathname === "/api/contributions") {
         return await handleCreateContribution(request, env, origin);
+      }
+      if (method === "GET" && pathname === "/api/my-contributions") {
+        return await handleGetMyContributions(request, env, origin);
+      }
+      if (method === "DELETE" && /^\/api\/my-contributions\/\d+$/.test(pathname)) {
+        return await handleDeleteMyContribution(request, env, origin, extractId(pathname));
       }
 
       // --- Chat (guest/admin only, rate limited) ---

@@ -457,6 +457,7 @@ function initChatbot() {
         if (!res.ok) throw new Error(json.error || 'Erro ao processar');
         card.querySelector('.chatbot__contribution-actions').innerHTML =
           '<span style="color:var(--color-funded);font-weight:600">✓ Contribuição registada! Obrigado 🎁</span>';
+        chatHistory.length = 0;
         await loadGifts();
       } catch (err) {
         card.querySelector('.chatbot__contribution-actions').innerHTML =
@@ -467,9 +468,73 @@ function initChatbot() {
     card.querySelector('.chatbot__cancel-btn').addEventListener('click', () => {
       card.querySelector('.chatbot__contribution-actions').innerHTML =
         '<span style="font-size:var(--text-sm);color:var(--color-text-muted)">Contribuição cancelada.</span>';
+      chatHistory.length = 0;
       appendMessage('bot', 'Sem problema! Se quiseres contribuir mais tarde, usa o botão "Contribuir" em qualquer presente. 😊');
     });
   }
+
+  async function showMyContributions() {
+    const loadingEl = appendMessage('bot', 'A carregar as tuas contribuições…');
+    try {
+      const res = await fetch(`${API_BASE}/api/my-contributions`, {
+        headers: guestHeaders(),
+      });
+      loadingEl.remove();
+      if (!res.ok) throw new Error();
+      const list = await res.json();
+
+      if (list.length === 0) {
+        appendMessage('bot', 'Ainda não tens contribuições registadas. Podes contribuir aqui no chat ou pelo botão "Contribuir" em qualquer presente! 🎁');
+        return;
+      }
+
+      const card = document.createElement('div');
+      card.className = 'chatbot__my-contributions-card';
+      card.innerHTML = `
+        <p class="chatbot__my-contributions-title">As tuas contribuições (${list.length})</p>
+        <ul class="chatbot__my-contributions-list">
+          ${list.map(c => `
+            <li class="chatbot__my-contribution-item" data-id="${c.id}">
+              <div class="chatbot__my-contribution-info">
+                <strong>${escHtml(c.item_title)}</strong>
+                <span>€${Number(c.amount).toFixed(2)}${c.message ? ` · "${escHtml(c.message)}"` : ''}</span>
+              </div>
+              <button class="chatbot__my-contribution-delete" data-id="${c.id}" aria-label="Cancelar contribuição">Cancelar</button>
+            </li>
+          `).join('')}
+        </ul>
+      `;
+      messages.appendChild(card);
+      scrollMessages();
+
+      card.querySelectorAll('.chatbot__my-contribution-delete').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const id = btn.dataset.id;
+          btn.disabled = true;
+          btn.textContent = '…';
+          try {
+            const delRes = await fetch(`${API_BASE}/api/my-contributions/${id}`, {
+              method: 'DELETE',
+              headers: guestHeaders(),
+            });
+            if (!delRes.ok) throw new Error();
+            const li = card.querySelector(`li[data-id="${id}"]`);
+            li.innerHTML = '<span style="font-size:var(--text-xs);color:var(--color-text-muted)">✓ Contribuição cancelada.</span>';
+            await loadGifts();
+          } catch {
+            btn.disabled = false;
+            btn.textContent = 'Cancelar';
+            appendMessage('bot', 'Não foi possível cancelar. Tenta novamente.');
+          }
+        });
+      });
+    } catch {
+      loadingEl.remove();
+      appendMessage('bot', 'Não foi possível carregar as contribuições. Tenta novamente.');
+    }
+  }
+
+  document.getElementById('chatbot-my-contribs')?.addEventListener('click', showMyContributions);
 
   function appendMessage(type, text) {
     const el = document.createElement('div');
