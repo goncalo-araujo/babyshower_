@@ -347,6 +347,26 @@ document.getElementById('refresh-contributions-btn').addEventListener('click', (
   loadContributions();
 });
 
+document.getElementById('reset-contributions-btn').addEventListener('click', async () => {
+  if (!confirm('Tens a certeza? Isto apaga TODAS as contribuições e repõe o progresso de todos os presentes a zero. Esta ação não pode ser desfeita.')) return;
+  const btn = document.getElementById('reset-contributions-btn');
+  btn.disabled = true;
+  btn.textContent = 'A resetar…';
+  try {
+    const res = await fetch(`${API_BASE}/api/contributions`, {
+      method: 'DELETE',
+      headers: adminHeaders(),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    await loadContributions();
+  } catch (err) {
+    alert('Erro ao resetar: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🗑 Resetar tudo';
+  }
+});
+
 async function loadContributions() {
   const wrap = document.getElementById('contributions-table-wrap');
   wrap.innerHTML = '<div style="padding:var(--space-8);text-align:center;color:var(--color-text-muted)">A carregar&hellip;</div>';

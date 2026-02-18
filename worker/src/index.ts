@@ -583,6 +583,21 @@ Use "" for missing message. Never invent IDs. Output only the JSON or null.`,
   return jsonResponse({ reply, contribution_pending: contributionPending, cancellation_pending: cancellationPending }, 200, origin);
 }
 
+async function handleResetContributions(
+  request: Request,
+  env: Env,
+  origin: string
+): Promise<Response> {
+  if (!isAdmin(request, env)) {
+    return jsonResponse({ error: "Unauthorized" }, 401, origin);
+  }
+  await env.DB.batch([
+    env.DB.prepare("DELETE FROM contributions"),
+    env.DB.prepare("UPDATE items SET price_raised = 0, is_funded = 0"),
+  ]);
+  return jsonResponse({ success: true }, 200, origin);
+}
+
 async function handleAdminAuth(
   request: Request,
   env: Env,
@@ -676,6 +691,9 @@ export default {
       }
       if (method === "POST" && pathname === "/api/contributions") {
         return await handleCreateContribution(request, env, origin);
+      }
+      if (method === "DELETE" && pathname === "/api/contributions") {
+        return await handleResetContributions(request, env, origin);
       }
       if (method === "GET" && pathname === "/api/my-contributions") {
         return await handleGetMyContributions(request, env, origin);
