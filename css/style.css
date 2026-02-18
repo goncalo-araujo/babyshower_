@@ -943,6 +943,44 @@ h1, h2, h3, h4 {
   letter-spacing: 0.05em;
 }
 
+.chatbot__contribution-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4) var(--space-5);
+  align-self: flex-start;
+  max-width: 90%;
+  box-shadow: var(--shadow-sm);
+}
+
+.chatbot__contribution-title {
+  font-weight: 600;
+  font-size: var(--text-sm);
+  margin-bottom: var(--space-2);
+  color: var(--color-text);
+}
+
+.chatbot__contribution-details {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--space-4) 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.chatbot__contribution-details strong {
+  color: var(--color-text);
+}
+
+.chatbot__contribution-actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
 .chatbot__input-row {
   display: flex;
   align-items: center;
