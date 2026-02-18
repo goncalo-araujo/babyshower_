@@ -167,6 +167,8 @@
         <h2 class="section__title" id="contribute-title">Oferecer um Presente</h2>
         <p class="section__subtitle">
           Escolhe um presente da lista, preenche os teus dados, e nós registamos a tua contribuição.
+          Podes contribuir aqui, ou através do assistente no canto da página.<br>
+          <strong>Aceita-se também contribuição via MBWay</strong> — fala com os futuros pais para mais detalhes. 💛
         </p>
 
         <form class="form" id="contribution-form" novalidate aria-label="Formulário de contribuição">
@@ -237,6 +239,13 @@
           </button>
 
         </form>
+
+        <!-- My contributions panel, populated by JS -->
+        <div id="my-contributions-section" class="my-contributions" hidden>
+          <h3 class="my-contributions__title">As tuas contribuições</h3>
+          <ul class="my-contributions__list" id="my-contributions-list"></ul>
+        </div>
+
       </div>
     </section>
 

@@ -255,6 +255,58 @@ function createGiftCard(item) {
 // CONTRIBUTION FORM
 // =============================================================
 
+async function loadMyContributions() {
+  const section = document.getElementById('my-contributions-section');
+  const list = document.getElementById('my-contributions-list');
+  if (!section || !list) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/api/my-contributions`, { headers: guestHeaders() });
+    if (!res.ok) return;
+    const items = await res.json();
+
+    if (items.length === 0) {
+      section.hidden = true;
+      return;
+    }
+
+    section.hidden = false;
+    list.innerHTML = items.map(c => `
+      <li class="my-contributions__item" data-id="${c.id}">
+        <div class="my-contributions__info">
+          <strong>${escHtml(c.item_title)}</strong>
+          <span>€${Number(c.amount).toFixed(2)}${c.message ? ` · "${escHtml(c.message)}"` : ''}</span>
+        </div>
+        <button class="my-contributions__delete btn btn--outline btn--sm" data-id="${c.id}">
+          Cancelar
+        </button>
+      </li>
+    `).join('');
+
+    list.querySelectorAll('.my-contributions__delete').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.id;
+        if (!confirm('Tens a certeza que queres cancelar esta contribuição?')) return;
+        btn.disabled = true;
+        btn.textContent = '…';
+        try {
+          const del = await fetch(`${API_BASE}/api/my-contributions/${id}`, {
+            method: 'DELETE',
+            headers: guestHeaders(),
+          });
+          if (!del.ok) throw new Error();
+          await Promise.all([loadMyContributions(), loadGifts()]);
+        } catch {
+          btn.disabled = false;
+          btn.textContent = 'Cancelar';
+        }
+      });
+    });
+  } catch {
+    // silently ignore — not critical
+  }
+}
+
 function initContributionForm() {
   const form = document.getElementById('contribution-form');
   const grid = document.getElementById('gifts-grid');
@@ -321,8 +373,8 @@ function initContributionForm() {
       setFeedback(feedback, 'success', '🎉 Obrigado pela tua contribuição! A lista de presentes foi atualizada.');
       form.reset();
 
-      // Reload gift cards to show updated progress bars
-      await loadGifts();
+      // Reload gift cards and my contributions
+      await Promise.all([loadGifts(), loadMyContributions()]);
 
       // Scroll back up to registry so they can see the updated card
       document.getElementById('gifts').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -462,7 +514,7 @@ function initChatbot() {
         card.querySelector('.chatbot__contribution-actions').innerHTML =
           '<span style="color:var(--color-funded);font-weight:600">✓ Contribuição registada! Obrigado 🎁</span>';
         chatHistory.length = 0;
-        await loadGifts();
+        await Promise.all([loadGifts(), loadMyContributions()]);
       } catch (err) {
         card.querySelector('.chatbot__contribution-actions').innerHTML =
           `<span style="color:var(--color-error);font-size:var(--text-sm)">${escHtml(err.message)}</span>`;
@@ -568,7 +620,7 @@ function initChatbot() {
             if (!delRes.ok) throw new Error();
             const li = card.querySelector(`li[data-id="${id}"]`);
             li.innerHTML = '<span style="font-size:var(--text-xs);color:var(--color-text-muted)">✓ Contribuição cancelada.</span>';
-            await loadGifts();
+            await Promise.all([loadGifts(), loadMyContributions()]);
           } catch {
             btn.disabled = false;
             btn.textContent = 'Cancelar';
@@ -636,4 +688,5 @@ document.addEventListener('DOMContentLoaded', async () => {
   initContributionForm();
   initChatbot();
   initScrollSpy();
+  loadMyContributions(); // non-blocking, shows below form if guest has contributions
 });
