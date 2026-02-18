@@ -1,0 +1,31 @@
+name = "babyshower-worker"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+# =============================================================
+# D1 Database binding
+# Run: wrangler d1 create babyshower-db
+# Then replace REPLACE_WITH_YOUR_D1_DATABASE_ID with the output ID
+# =============================================================
+[[d1_databases]]
+binding = "DB"
+database_name = "babyshower-db"
+database_id = "318f3093-8209-4add-b2b4-38aff50cc66d"
+
+# =============================================================
+# Workers AI binding (free tier — no extra cost)
+# =============================================================
+[ai]
+binding = "AI"
+
+# =============================================================
+# Non-secret environment variables
+# ADMIN_PASSWORD and GUEST_PASSWORD are secrets — set via:
+#   wrangler secret put ADMIN_PASSWORD
+#   wrangler secret put GUEST_PASSWORD
+# =============================================================
+[vars]
+# LOCAL DEV: set to "*" while testing locally
+# BEFORE DEPLOYING: change back to "https://goncalo-araujo.github.io"
+FRONTEND_ORIGIN = "https://goncalo-araujo.github.io"

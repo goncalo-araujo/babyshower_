@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Estás convidado! Junta-te a nós para um chá de bebé — local, lista de presentes e muito mais.">
+  <title>Baby Shower — Gonçalo &amp; Família</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,200;0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&family=Playfair+Display:ital,wght@1,400;1,500&display=swap" rel="stylesheet">
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- =====================================================
+       NAVIGATION
+       ===================================================== -->
+  <header>
+    <nav class="nav" id="nav" role="navigation" aria-label="Navegação principal">
+      <div class="nav__inner">
+        <span class="nav__brand">Baby Shower Maria Luísa</span>
+        <ul class="nav__links" role="list">
+          <li><a href="#venue">Local</a></li>
+          <li><a href="#gifts">Presentes</a></li>
+          <li><a href="#contribute">Contribuir</a></li>
+        </ul>
+      </div>
+    </nav>
+  </header>
+
+  <!-- =====================================================
+       GUEST GATE — shown until correct password is entered
+       ===================================================== -->
+  <div id="guest-gate" class="guest-gate" hidden>
+    <div class="guest-gate__card">
+      <p class="guest-gate__eyebrow">Baby Shower Maria Luísa</p>
+      <h1 class="guest-gate__title">Bem-vindo 🎀</h1>
+      <p class="guest-gate__subtitle">Este espaço é apenas para convidados. Introduz a palavra-passe para entrar.</p>
+      <form id="guest-form" novalidate>
+        <input
+          class="form__input"
+          type="password"
+          id="guest-password-input"
+          placeholder="Palavra-passe"
+          autocomplete="current-password"
+          required
+          aria-label="Palavra-passe de convidado">
+        <div class="form__feedback" id="guest-feedback" role="alert" aria-live="polite"></div>
+        <button class="btn btn--primary btn--full" type="submit" id="guest-btn" style="margin-top: var(--space-4)">Entrar</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="main-content" hidden>
+  <main>
+
+    <!-- =====================================================
+         HERO
+         ===================================================== -->
+    <section class="hero" id="hero" aria-labelledby="hero-title">
+      <div class="hero__content">
+        <p class="hero__eyebrow">Estás convidado</p>
+        <h1 class="hero__title" id="hero-title">
+          <span class="hero__title-main">Baby Shower</span>
+          <span class="hero__title-name">Maria Luísa</span>
+        </h1>
+        <p class="hero__subtitle">
+          Estamos muito felizes por partilhar este momento tão especial com a nossa família e amigos queridos.
+          Vem celebrar nova vida, novo amor e novos começos connosco.
+        </p>
+        <div class="hero__date-card" role="group" aria-label="Data e hora do evento">
+          <div class="hero__date-item">
+            <span class="hero__date-label">Data</span>
+            <span class="hero__date-value">Sexta-feira, 11 de Abril de 2025</span>
+          </div>
+          <div class="hero__date-divider" aria-hidden="true"></div>
+          <div class="hero__date-item">
+            <span class="hero__date-label">Hora</span>
+            <!-- ATUALIZAR: Coloca aqui a hora real do evento -->
+            <span class="hero__date-value">15h00 – 19h00</span>
+          </div>
+        </div>
+      </div>
+      <span class="hero__scroll-hint" aria-hidden="true">↓</span>
+    </section>
+
+    <!-- =====================================================
+         VENUE
+         ===================================================== -->
+    <section class="section section--alt" id="venue" aria-labelledby="venue-title">
+      <div class="container">
+        <h2 class="section__title" id="venue-title">Como Chegar</h2>
+        <p class="section__subtitle">Mal podemos esperar para te ver — aqui ficam as indicações.</p>
+
+        <div class="venue__grid">
+          <!-- Coluna de informações -->
+          <div class="venue__info">
+            <h3 class="venue__name">Messe Militar de Évora</h3>
+            <p class="venue__address">
+              Largo da Graça<br>
+              7000-645 Évora
+            </p>
+
+            <a class="btn btn--outline" href="https://maps.app.goo.gl/Sygdi3wuZ8avmtK26" target="_blank" rel="noopener noreferrer">
+              Abrir no Google Maps ↗
+            </a>
+          </div>
+
+          <!-- Map column -->
+          <div class="venue__map">
+            <!--
+              UPDATE: Replace the src with your actual venue coordinates.
+              To find values: go to openstreetmap.org, navigate to your venue,
+              right-click → "Show address", then read the lat/lon from the URL.
+              Replace lat=38.7104 and lon=-9.1404 with your values.
+            -->
+            <iframe
+              src="https://www.openstreetmap.org/export/embed.html?bbox=-7.9073478%2C38.5692967%2C-7.9073478%2C38.5692967&amp;layer=mapnik&amp;marker=38.5692967%2C-7.9073478"
+              width="100%"
+              height="380"
+              style="border:0;"
+              loading="lazy"
+              referrerpolicy="no-referrer-when-downgrade"
+              title="Localização do chá de bebé no mapa"
+              aria-label="Mapa a mostrar a localização do evento">
+            </iframe>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =====================================================
+         GIFT REGISTRY
+         ===================================================== -->
+    <section class="section" id="gifts" aria-labelledby="gifts-title">
+      <div class="container">
+        <h2 class="section__title" id="gifts-title">Lista de Presentes</h2>
+        <p class="section__subtitle">
+          Cada contribuição, grande ou pequena, significa tudo para nós.
+          Clica em qualquer presente para contribuir.
+        </p>
+
+        <!-- Os cartões são gerados dinamicamente pelo main.js -->
+        <div class="gifts__grid" id="gifts-grid" role="list" aria-label="Lista de presentes">
+          <div class="gifts__loading" role="status" aria-live="polite">
+            A carregar presentes&hellip;
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =====================================================
+         CONTRIBUTION FORM
+         ===================================================== -->
+    <section class="section section--alt" id="contribute" aria-labelledby="contribute-title">
+      <div class="container--narrow">
+        <h2 class="section__title" id="contribute-title">Oferecer um Presente</h2>
+        <p class="section__subtitle">
+          Escolhe um presente da lista, preenche os teus dados, e nós registamos a tua contribuição.
+        </p>
+
+        <form class="form" id="contribution-form" novalidate aria-label="Formulário de contribuição">
+
+          <div class="form__group">
+            <label class="form__label" for="gift-select">Presente *</label>
+            <select class="form__select" id="gift-select" name="item_id" required aria-required="true">
+              <option value="">Escolhe um presente da lista&hellip;</option>
+              <!-- Preenchido pelo main.js a partir da API -->
+            </select>
+          </div>
+
+          <div class="form__group">
+            <label class="form__label" for="name-input">O teu nome *</label>
+            <input
+              class="form__input"
+              type="text"
+              id="name-input"
+              name="contributor_name"
+              placeholder="ex. Maria Silva"
+              required
+              aria-required="true"
+              maxlength="100"
+              autocomplete="name">
+          </div>
+
+          <div class="form__group">
+            <label class="form__label" for="amount-input">Valor (€) *</label>
+            <input
+              class="form__input"
+              type="number"
+              id="amount-input"
+              name="amount"
+              placeholder="0.00"
+              min="1"
+              step="0.01"
+              required
+              aria-required="true">
+          </div>
+
+          <div class="form__group">
+            <label class="form__label" for="message-input">Mensagem <span style="font-weight:400;color:var(--color-text-muted)">(opcional)</span></label>
+            <textarea
+              class="form__textarea"
+              id="message-input"
+              name="message"
+              placeholder="Deixa uma mensagem carinhosa para os futuros pais&hellip;"
+              maxlength="300"
+              rows="3"
+              aria-describedby="message-hint">
+            </textarea>
+            <span id="message-hint" class="sr-only">Máximo de 300 caracteres</span>
+          </div>
+
+          <div
+            class="form__feedback"
+            id="form-feedback"
+            role="alert"
+            aria-live="polite"
+            aria-atomic="true">
+          </div>
+
+          <button
+            class="btn btn--primary btn--full btn--lg"
+            type="submit"
+            id="submit-btn">
+            Contribuir
+          </button>
+
+        </form>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- =====================================================
+       AI CHATBOT WIDGET
+       ===================================================== -->
+  <div class="chatbot" id="chatbot">
+    <!-- Toggle button -->
+    <button
+      class="chatbot__toggle"
+      id="chatbot-toggle"
+      aria-label="Abrir assistente"
+      aria-expanded="false"
+      aria-controls="chatbot-panel"
+      title="Fala com o nosso assistente">
+      💬
+    </button>
+
+    <!-- Chat panel -->
+    <div
+      class="chatbot__panel"
+      id="chatbot-panel"
+      role="dialog"
+      aria-label="Assistente de evento"
+      aria-modal="false"
+      hidden>
+
+      <div class="chatbot__header">
+        <div class="chatbot__header-info">
+          <div class="chatbot__avatar" aria-hidden="true">✨</div>
+          <div>
+            <span class="chatbot__title">Assistente de evento</span>
+            <span class="chatbot__subtitle">Pergunta-me o que quiseres sobre o evento</span>
+          </div>
+        </div>
+        <button
+          class="chatbot__close"
+          id="chatbot-close"
+          aria-label="Fechar assistente">
+          ✕
+        </button>
+      </div>
+
+      <div class="chatbot__messages" id="chatbot-messages" aria-live="polite" aria-label="Mensagens do chat">
+        <div class="chatbot__message chatbot__message--bot">
+          Olá! Estou aqui para te ajudar a escolher um presente ou responder a qualquer dúvida sobre o evento. O que queres saber? 🎁
+        </div>
+      </div>
+
+      <form class="chatbot__input-row" id="chatbot-form" aria-label="Enviar mensagem">
+        <input
+          class="chatbot__input"
+          type="text"
+          id="chatbot-input"
+          placeholder="Pergunta-me o que quiseres&hellip;"
+          maxlength="300"
+          autocomplete="off"
+          aria-label="A tua mensagem">
+        <button
+          class="chatbot__send"
+          type="submit"
+          aria-label="Enviar mensagem">
+          →
+        </button>
+      </form>
+
+    </div>
+  </div>
+
+  <!-- =====================================================
+       FOOTER
+       ===================================================== -->
+  <footer class="footer">
+    <p>Feito com amor para o nosso bebé <em class="footer__heart" aria-hidden="true">♡</em></p>
+  </footer>
+
+  <!-- Scripts -->
+  <script src="js/main.js"></script>
+
+  </div><!-- /#main-content -->
+
+</body>
+</html>
