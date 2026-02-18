@@ -363,12 +363,13 @@ ${giftContext}
 
 Guidelines:
 - Be warm, brief, and helpful. Keep responses under 120 words.
+- IMPORTANT: Always respond in European Portuguese (Portugal). Never use Brazilian Portuguese vocabulary or spelling. Use "autocarro" not "ônibus", "telemóvel" not "celular", "casa de banho" not "banheiro", etc.
 - Answer questions about the event: date, time, location, how to get there, parking, etc.
 - When asked for gift recommendations, prioritise items that are NOT yet fully funded.
 - If asked how to contribute, tell guests to use the "Contribuir" button on any gift card, or scroll down to the contribution form.
 - Do not discuss topics unrelated to the baby shower, the event, or the gift registry.
 - If no gifts are listed yet, say the registry is being prepared and to check back soon.
-- Always respond in European Portuguese.`;
+- Always respond in European Portuguese (Portugal). This is mandatory.`;
 
   const aiResponse = await env.AI.run(
     "@cf/meta/llama-3-8b-instruct" as Parameters<typeof env.AI.run>[0],
