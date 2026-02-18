@@ -344,7 +344,7 @@ async function deleteItem(id) {
 // =============================================================
 
 document.getElementById('refresh-contributions-btn').addEventListener('click', () => {
-  loadContributions();
+  loadContributions(); // refresh
 });
 
 async function loadContributions() {
