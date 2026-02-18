@@ -379,11 +379,23 @@ async function handleChat(
   //    ON CONFLICT(ip, day) DO UPDATE SET count = count + 1`
   // ).bind(ip, day).run();
 
+  const ip = getIP(request);
+
   // Fetch current gift state for AI context
   const { results: items } = await env.DB.prepare(
     `SELECT id, title, description, price_total, price_raised, is_funded, product_url
      FROM items ORDER BY is_funded ASC, created_at ASC`
   ).all<Item>();
+
+  // Fetch this guest's own contributions for AI context
+  const { results: myContributions } = await env.DB.prepare(
+    `SELECT c.id, c.item_id, c.contributor_name, c.amount, c.message,
+            i.title AS item_title
+     FROM contributions c
+     JOIN items i ON c.item_id = i.id
+     WHERE c.contributor_ip = ?
+     ORDER BY c.created_at DESC`
+  ).bind(ip).all<Contribution>();
 
   const giftContext =
     items.length > 0
@@ -395,35 +407,49 @@ async function handleChat(
           .join("\n")
       : "No gift items have been added yet.";
 
+  const myContribsContext =
+    myContributions.length > 0
+      ? myContributions
+          .map((c) => `- [ContribID:${c.id}] €${Number(c.amount).toFixed(2)} for "${c.item_title}"${c.message ? ` (message: "${c.message}")` : ""}`)
+          .join("\n")
+      : "This guest has no registered contributions yet.";
+
   const systemPrompt = `You are a warm and friendly assistant for the baby shower of Maria Luísa.
 Your role is to help guests with anything related to the event: location, directions, schedule, the gift registry, and how to contribute.
 
 EVENT DETAILS:
-- Name: Baby Shower Maria Luísa
+- Name: Baby Shower da Maria Luísa
 - Date: Friday, 11 April 2025
 - Time: 15h00 – 19h00
 - Venue: Messe Militar de Évora, Évora, Portugal
-- Google Maps: https://maps.google.com?q=Messe+de+Évora,+Évora,+Portugal
-- Directions: Each guest's route will vary — suggest they use Google Maps or Waze with "Messe de Évora" as the destination.
+- Google Maps: https://maps.google.com?q=Messe+Militar+de+%C3%89vora,+%C3%89vora,+Portugal
+- Directions: Each guest's route will vary — suggest they use Google Maps or Waze with "Messe Militar de Évora" as the destination.
 
 GIFT REGISTRY:
 ${giftContext}
 
+THIS GUEST'S CONTRIBUTIONS:
+${myContribsContext}
+
 CONTRIBUTION FLOW:
-If a guest wants to contribute to a gift via this chat, collect the following in a friendly conversation:
+If a guest wants to contribute to a gift via this chat, collect in a friendly conversation:
 1. Which gift they want (refer to names, not IDs)
 2. Their full name
 3. The amount in euros (minimum €1)
 4. Optionally a personal message (they can skip)
-Once you have item + name + amount, give a warm summary of the contribution details and tell the guest that a confirmation card will appear for them to confirm.
+Once you have item + name + amount, give a warm summary and tell the guest a confirmation card will appear.
+
+CANCELLATION FLOW:
+If a guest wants to cancel or change one of their existing contributions (listed above under THIS GUEST'S CONTRIBUTIONS):
+1. Confirm which contribution they want to cancel (use the ContribID internally, refer to it by gift name and amount to the guest)
+2. Give a brief summary and tell them a confirmation card will appear to cancel it.
 
 Guidelines:
 - Be warm, brief, and helpful. Keep responses under 120 words.
-- IMPORTANT: Always respond in European Portuguese (Portugal). Never use Brazilian Portuguese vocabulary or spelling. Use "autocarro" not "ônibus", "telemóvel" not "celular", "casa de banho" not "banheiro", etc.
+- IMPORTANT: Always respond in European Portuguese (Portugal). Use "autocarro" not "ônibus", "telemóvel" not "celular", "casa de banho" not "banheiro", etc.
 - Answer questions about the event: date, time, location, how to get there, parking, etc.
 - When asked for gift recommendations, prioritise items that are NOT yet fully funded.
 - Do not discuss topics unrelated to the baby shower, the event, or the gift registry.
-- If no gifts are listed yet, say the registry is being prepared and to check back soon.
 - Always respond in European Portuguese (Portugal). This is mandatory.`;
 
   // Build message history (last 10 turns to stay within token limits)
@@ -459,18 +485,33 @@ Guidelines:
   ].join("\n");
 
   const itemList = items.map((i) => `${i.id}: ${i.title}`).join("\n");
+  const contribList = myContributions.length > 0
+    ? myContributions.map((c) => `${c.id}: €${Number(c.amount).toFixed(2)} for "${c.item_title}"`).join("\n")
+    : "none";
 
   const extractorMessages = [
     {
       role: "system" as const,
-      content: `You extract gift contribution data from a conversation. Respond ONLY in valid JSON or the single word null.
-Available gift IDs:\n${itemList}
-Rules:
-- If the conversation shows the guest has provided ALL of: (1) which gift, (2) their name, (3) an amount in euros — respond with ONLY this JSON on one line (no extra text):
-{"item_id":<number>,"name":"<string>","amount":<number>,"message":"<string>"}
-- Use "" for message if not provided.
-- If ANY required field (gift, name, amount) is missing or unclear, respond with only: null
-- Do not add any explanation or extra text.`,
+      content: `You detect guest actions from a conversation. Respond ONLY with valid JSON on one line, or the word null.
+
+Available gift IDs:
+${itemList}
+
+This guest's contribution IDs:
+${contribList}
+
+Rules — output exactly ONE of these formats or null:
+
+1. Guest wants to ADD a new contribution and has provided gift + name + amount:
+{"action":"contribute","item_id":<number>,"name":"<string>","amount":<number>,"message":"<string>"}
+
+2. Guest wants to CANCEL one of their existing contributions and has confirmed which one:
+{"action":"cancel","contribution_id":<number>,"item_title":"<string>","amount":<number>}
+
+3. Anything else (still collecting info, just chatting, asking questions):
+null
+
+Use "" for missing message. Never invent IDs. Output only the JSON or null.`,
     },
     {
       role: "user" as const,
@@ -480,7 +521,7 @@ Rules:
 
   const extractorResponse = await env.AI.run(
     "@cf/meta/llama-3-8b-instruct" as Parameters<typeof env.AI.run>[0],
-    { messages: extractorMessages, max_tokens: 80 }
+    { messages: extractorMessages, max_tokens: 100 }
   );
 
   const extractorRaw =
@@ -494,31 +535,52 @@ Rules:
     message: string;
   } | null = null;
 
+  let cancellationPending: {
+    contribution_id: number;
+    item_title: string;
+    amount: number;
+  } | null = null;
+
   try {
     const jsonMatch = extractorRaw.match(/\{[\s\S]*?\}/);
     if (jsonMatch) {
       const data = JSON.parse(jsonMatch[0]) as {
+        action?: string;
         item_id?: number;
         name?: string;
         amount?: number;
         message?: string;
+        contribution_id?: number;
+        item_title?: string;
       };
-      const item = items.find((i) => i.id === Number(data.item_id));
-      if (item && data.name && Number(data.amount) > 0 && !item.is_funded) {
-        contributionPending = {
-          item_id: item.id,
-          item_title: item.title,
-          name: String(data.name),
-          amount: Number(data.amount),
-          message: String(data.message ?? ""),
-        };
+
+      if (data.action === "contribute") {
+        const item = items.find((i) => i.id === Number(data.item_id));
+        if (item && data.name && Number(data.amount) > 0 && !item.is_funded) {
+          contributionPending = {
+            item_id: item.id,
+            item_title: item.title,
+            name: String(data.name),
+            amount: Number(data.amount),
+            message: String(data.message ?? ""),
+          };
+        }
+      } else if (data.action === "cancel") {
+        const existing = myContributions.find((c) => c.id === Number(data.contribution_id));
+        if (existing) {
+          cancellationPending = {
+            contribution_id: existing.id,
+            item_title: existing.item_title ?? String(data.item_title ?? ""),
+            amount: existing.amount,
+          };
+        }
       }
     }
   } catch {
-    // ignore parse errors — contributionPending stays null
+    // ignore parse errors
   }
 
-  return jsonResponse({ reply, contribution_pending: contributionPending }, 200, origin);
+  return jsonResponse({ reply, contribution_pending: contributionPending, cancellation_pending: cancellationPending }, 200, origin);
 }
 
 async function handleAdminAuth(
