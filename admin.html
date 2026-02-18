@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Painel de Administração — Chá de Bebé</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,200;0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&family=Playfair+Display:ital,wght@1,400;1,500&display=swap" rel="stylesheet">
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="admin-body">
+
+  <!-- =====================================================
+       ECRÃ DE LOGIN
+       ===================================================== -->
+  <div id="login-screen" class="login-screen">
+    <div class="login-card">
+      <h1 class="login-card__title">Administração</h1>
+      <p class="login-card__subtitle">Lista de Presentes — Chá de Bebé</p>
+
+      <form id="login-form" class="form" novalidate aria-label="Login de administração">
+        <div class="form__group">
+          <label class="form__label" for="password-input">Palavra-passe</label>
+          <input
+            class="form__input"
+            type="password"
+            id="password-input"
+            required
+            aria-required="true"
+            autocomplete="current-password"
+            placeholder="Introduz a palavra-passe">
+        </div>
+
+        <div
+          class="form__feedback"
+          id="login-feedback"
+          role="alert"
+          aria-live="polite"
+          aria-atomic="true">
+        </div>
+
+        <button class="btn btn--primary btn--full" type="submit" id="login-btn">
+          Entrar
+        </button>
+      </form>
+
+      <p style="margin-top: var(--space-6); text-align: center;">
+        <a href="index.html" style="font-size: var(--text-sm); color: var(--color-text-muted);">
+          ← Voltar à página principal
+        </a>
+      </p>
+    </div>
+  </div>
+
+  <!-- =====================================================
+       PAINEL DE ADMINISTRAÇÃO (oculto até autenticação)
+       ===================================================== -->
+  <div id="admin-dashboard" class="admin-dashboard" hidden>
+
+    <!-- Cabeçalho -->
+    <header class="admin-header">
+      <h1>Administração — Chá de Bebé</h1>
+      <div style="display:flex;gap:var(--space-3);align-items:center;">
+        <a href="index.html" class="btn btn--ghost btn--sm">← Ver Site</a>
+        <button class="btn btn--outline btn--sm" id="logout-btn">Sair</button>
+      </div>
+    </header>
+
+    <!-- Navegação por separadores -->
+    <nav class="admin-tabs" aria-label="Secções de administração">
+      <button class="admin-tab active" data-tab="items" aria-selected="true">
+        Presentes
+      </button>
+      <button class="admin-tab" data-tab="contributions" aria-selected="false">
+        Contribuições
+      </button>
+    </nav>
+
+    <!-- ===================================================
+         SEPARADOR: PRESENTES
+         =================================================== -->
+    <section class="admin-panel" id="tab-items" role="tabpanel" aria-label="Gestão de presentes">
+      <div class="admin-panel__toolbar">
+        <h2>Presentes</h2>
+        <button class="btn btn--primary" id="add-item-btn">+ Adicionar Presente</button>
+      </div>
+      <div class="admin-table-wrap" id="items-table-wrap">
+        <div style="padding:var(--space-8);text-align:center;color:var(--color-text-muted)">
+          A carregar presentes&hellip;
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================================================
+         SEPARADOR: CONTRIBUIÇÕES
+         =================================================== -->
+    <section class="admin-panel" id="tab-contributions" role="tabpanel" aria-label="Lista de contribuições" hidden>
+      <div class="admin-panel__toolbar">
+        <h2>Contribuições</h2>
+        <button class="btn btn--outline btn--sm" id="refresh-contributions-btn">Atualizar</button>
+      </div>
+      <div class="admin-table-wrap" id="contributions-table-wrap">
+        <div style="padding:var(--space-8);text-align:center;color:var(--color-text-muted)">
+          A carregar contribuições&hellip;
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- =====================================================
+       MODAL — ADICIONAR / EDITAR PRESENTE
+       ===================================================== -->
+  <div class="modal" id="item-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title-text" hidden>
+    <div class="modal__overlay" id="modal-overlay" aria-hidden="true"></div>
+    <div class="modal__box">
+      <h3 id="modal-title-text">Adicionar Presente</h3>
+
+      <form id="item-form" class="form" novalidate aria-label="Formulário de presente">
+        <!-- Campo ID oculto para modo de edição -->
+        <input type="hidden" id="item-id">
+
+        <div class="form__group">
+          <label class="form__label" for="item-title">Nome *</label>
+          <input
+            class="form__input"
+            type="text"
+            id="item-title"
+            required
+            aria-required="true"
+            maxlength="200"
+            placeholder="ex. Monitor de Bebé">
+        </div>
+
+        <div class="form__group">
+          <label class="form__label" for="item-description">
+            Descrição
+            <span style="font-weight:400;color:var(--color-text-muted)">(opcional)</span>
+          </label>
+          <textarea
+            class="form__textarea"
+            id="item-description"
+            rows="3"
+            maxlength="500"
+            placeholder="Breve descrição do presente&hellip;">
+          </textarea>
+        </div>
+
+        <div class="form__group">
+          <label class="form__label" for="item-image">
+            URL da Imagem
+            <span style="font-weight:400;color:var(--color-text-muted)">(opcional)</span>
+          </label>
+          <input
+            class="form__input"
+            type="url"
+            id="item-image"
+            placeholder="https://exemplo.com/imagem.jpg">
+        </div>
+
+        <div class="form__group">
+          <label class="form__label" for="item-link">
+            Link do Produto
+            <span style="font-weight:400;color:var(--color-text-muted)">(opcional)</span>
+          </label>
+          <input
+            class="form__input"
+            type="url"
+            id="item-link"
+            placeholder="https://amazon.com/...">
+        </div>
+
+        <div class="form__group">
+          <label class="form__label" for="item-price">Preço Total (€) *</label>
+          <input
+            class="form__input"
+            type="number"
+            id="item-price"
+            min="0"
+            step="0.01"
+            required
+            aria-required="true"
+            placeholder="0.00">
+        </div>
+
+        <div class="form__group form__group--checkbox">
+          <input type="checkbox" id="item-funded" style="width:16px;height:16px;accent-color:var(--color-accent);">
+          <label class="form__label" for="item-funded" style="cursor:pointer;">
+            Marcar como Totalmente Financiado
+          </label>
+        </div>
+
+        <div
+          class="form__feedback"
+          id="modal-feedback"
+          role="alert"
+          aria-live="polite">
+        </div>
+
+        <div class="modal__actions">
+          <button type="button" class="btn btn--outline" id="modal-cancel">Cancelar</button>
+          <button type="submit" class="btn btn--primary" id="modal-save">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="js/admin.js"></script>
+
+</body>
+</html>

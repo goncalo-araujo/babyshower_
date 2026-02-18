@@ -1,0 +1,464 @@
+'use strict';
+
+// =============================================================
+// CONFIGURATION
+// UPDATE this to your deployed Cloudflare Worker URL after deployment.
+// For local development with `wrangler dev`, use: http://localhost:8787
+// =============================================================
+// Local dev:  'http://localhost:8787'
+// Production: replace YOUR_SUBDOMAIN with your Cloudflare subdomain (e.g. goncaloaraujo)
+const API_BASE = 'https://babyshower-worker.goncaloaraujo.workers.dev';
+
+// =============================================================
+// GUEST AUTH — password stored in sessionStorage for the tab lifetime
+// =============================================================
+
+let _guestPassword = sessionStorage.getItem('guestPassword') ?? null;
+
+function guestHeaders() {
+  return {
+    'Content-Type': 'application/json',
+    'X-Guest-Password': _guestPassword ?? '',
+  };
+}
+
+async function initGuestGate() {
+  // Already authenticated this session — just show main content and return
+  if (_guestPassword) {
+    const main = document.getElementById('main-content');
+    if (main) main.hidden = false;
+    return true;
+  }
+
+  const screen = document.getElementById('guest-gate');
+  const main = document.getElementById('main-content');
+  const form = document.getElementById('guest-form');
+  const input = document.getElementById('guest-password-input');
+  const feedback = document.getElementById('guest-feedback');
+  const btn = document.getElementById('guest-btn');
+
+  if (!screen || !form) return true; // gate elements missing — allow through
+
+  screen.hidden = false;
+  main.hidden = true;
+
+  return new Promise((resolve) => {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const password = input.value;
+      setFeedback(feedback, null);
+      btn.disabled = true;
+      btn.textContent = 'A verificar…';
+
+      try {
+        const res = await fetch(`${API_BASE}/api/guest/auth`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password }),
+        });
+
+        if (!res.ok) throw new Error('wrong');
+
+        _guestPassword = password;
+        sessionStorage.setItem('guestPassword', password);
+        screen.hidden = true;
+        main.hidden = false;
+        resolve(true);
+
+      } catch {
+        setFeedback(feedback, 'error', 'Palavra-passe incorreta. Tenta novamente.');
+        input.value = '';
+        input.focus();
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Entrar';
+      }
+    });
+  });
+}
+
+// =============================================================
+// NAV — Add shadow on scroll
+// =============================================================
+(function initNav() {
+  const nav = document.getElementById('nav');
+  if (!nav) return;
+  const observer = new IntersectionObserver(
+    ([entry]) => {
+      nav.classList.toggle('scrolled', !entry.isIntersecting);
+    },
+    { threshold: 0 }
+  );
+  const hero = document.getElementById('hero');
+  if (hero) observer.observe(hero);
+})();
+
+// =============================================================
+// UTILITIES
+// =============================================================
+
+/** Escape HTML to prevent XSS when rendering server data into the DOM. */
+function escHtml(str) {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/** Fallback when a gift card image fails to load. */
+function handleImageError(img) {
+  img.parentElement.innerHTML = '<div class="gift-card__image--placeholder" aria-hidden="true">🎁</div>';
+}
+
+/**
+ * Show/hide form feedback message.
+ * @param {HTMLElement} el - The feedback element
+ * @param {'success'|'error'|null} type - null to hide
+ * @param {string} [msg]
+ */
+function setFeedback(el, type, msg) {
+  el.className = 'form__feedback';
+  if (type) {
+    el.classList.add(`show--${type}`);
+    el.textContent = msg ?? '';
+  } else {
+    el.textContent = '';
+  }
+}
+
+// =============================================================
+// GIFT REGISTRY — Fetch and render gift cards
+// =============================================================
+
+async function loadGifts() {
+  const grid = document.getElementById('gifts-grid');
+  const select = document.getElementById('gift-select');
+  if (!grid || !select) return;
+
+  grid.innerHTML = '<div class="gifts__loading" role="status" aria-live="polite">A carregar presentes&hellip;</div>';
+  // Reset select to first placeholder option
+  while (select.options.length > 1) select.remove(1);
+
+  let items = [];
+  try {
+    const res = await fetch(`${API_BASE}/api/items`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    items = await res.json();
+  } catch (err) {
+    grid.innerHTML = '<div class="gifts__loading">Não foi possível carregar os presentes. Por favor atualiza a página ou tenta mais tarde.</div>';
+    console.error('Failed to load gift items:', err);
+    return;
+  }
+
+  grid.innerHTML = '';
+
+  if (items.length === 0) {
+    grid.innerHTML = '<div class="gifts__loading">A lista de presentes está a ser preparada. Volta em breve!</div>';
+    return;
+  }
+
+  items.forEach((item) => {
+    // Render card
+    const card = createGiftCard(item);
+    grid.appendChild(card);
+
+    // Populate contribution form select
+    const option = document.createElement('option');
+    option.value = item.id;
+    const isFunded = item.is_funded === 1 || item.is_funded === true;
+    option.textContent = `${item.title} — €${Number(item.price_total).toFixed(2)}${isFunded ? ' (Totalmente Financiado)' : ''}`;
+    if (isFunded) option.disabled = true;
+    select.appendChild(option);
+  });
+}
+
+/**
+ * Create a gift card DOM element from an item object.
+ * @param {object} item
+ * @returns {HTMLElement}
+ */
+function createGiftCard(item) {
+  const isFunded = item.is_funded === 1 || item.is_funded === true;
+  const priceTotal = Number(item.price_total);
+  const priceRaised = Number(item.price_raised);
+  const pct = priceTotal > 0 ? Math.min(100, Math.round((priceRaised / priceTotal) * 100)) : 0;
+
+  const article = document.createElement('article');
+  article.className = `gift-card${isFunded ? ' gift-card--funded' : ''}`;
+  article.setAttribute('role', 'listitem');
+  article.dataset.itemId = item.id;
+
+  // Build image section
+  const imageSection = item.image_url
+    ? `<div class="gift-card__image-wrap">
+         <img
+           class="gift-card__image"
+           src="${escHtml(item.image_url)}"
+           alt="${escHtml(item.title)}"
+           loading="lazy"
+         onerror="handleImageError(this)"
+         >
+       </div>`
+    : `<div class="gift-card__image--placeholder" aria-hidden="true">🎁</div>`;
+
+  // Build actions
+  const viewLink = item.product_url
+    ? `<a class="btn btn--outline" href="${escHtml(item.product_url)}" target="_blank" rel="noopener noreferrer" aria-label="Ver ${escHtml(item.title)} online">Ver Produto ↗</a>`
+    : '';
+
+  const contributeBtn = !isFunded
+    ? `<button
+         class="btn btn--primary contribute-btn"
+         data-item-id="${item.id}"
+         data-item-title="${escHtml(item.title)}"
+         aria-label="Contribuir para ${escHtml(item.title)}">
+         Contribuir
+       </button>`
+    : `<span class="btn btn--outline" style="pointer-events:none;opacity:0.5;cursor:default;" aria-disabled="true">Financiado ✓</span>`;
+
+  article.innerHTML = `
+    ${imageSection}
+    <div class="gift-card__body">
+      ${isFunded ? '<span class="gift-card__funded-badge" aria-label="Totalmente financiado">Totalmente Financiado ✓</span>' : ''}
+      <h3 class="gift-card__title">${escHtml(item.title)}</h3>
+      ${item.description ? `<p class="gift-card__description">${escHtml(item.description)}</p>` : ''}
+      <p class="gift-card__price">€${priceTotal.toFixed(2)}</p>
+      <div class="progress-wrap">
+        <div
+          class="progress-bar"
+          role="progressbar"
+          aria-valuenow="${pct}"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          aria-label="${pct}% financiado">
+          <div class="progress-bar__fill" style="width:${pct}%"></div>
+        </div>
+        <p class="progress-text">
+          €${priceRaised.toFixed(2)} angariados de €${priceTotal.toFixed(2)}
+          <span aria-hidden="true">&nbsp;·&nbsp;</span>
+          <strong>${pct}%</strong>
+        </p>
+      </div>
+      <div class="gift-card__actions">
+        ${viewLink}
+        ${contributeBtn}
+      </div>
+    </div>
+  `;
+
+  return article;
+}
+
+// =============================================================
+// CONTRIBUTION FORM
+// =============================================================
+
+function initContributionForm() {
+  const form = document.getElementById('contribution-form');
+  const grid = document.getElementById('gifts-grid');
+  const feedback = document.getElementById('form-feedback');
+  const submitBtn = document.getElementById('submit-btn');
+  if (!form || !feedback || !submitBtn) return;
+
+  // Clicking "Contribute" on a card pre-fills the select and scrolls to the form
+  grid && grid.addEventListener('click', (e) => {
+    const btn = e.target.closest('.contribute-btn');
+    if (!btn) return;
+    const { itemId } = btn.dataset;
+    const select = document.getElementById('gift-select');
+    if (select) select.value = itemId;
+    document.getElementById('contribute').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setTimeout(() => {
+      const nameInput = document.getElementById('name-input');
+      if (nameInput) nameInput.focus();
+    }, 400);
+  });
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    setFeedback(feedback, null);
+
+    const itemId = parseInt(form.item_id.value, 10);
+    const contributorName = form.contributor_name.value.trim();
+    const amount = parseFloat(form.amount.value);
+    const message = form.message.value.trim();
+
+    // Client-side validation
+    if (!itemId) {
+      setFeedback(feedback, 'error', 'Por favor seleciona um presente da lista.');
+      document.getElementById('gift-select').focus();
+      return;
+    }
+    if (!contributorName) {
+      setFeedback(feedback, 'error', 'Por favor introduz o teu nome.');
+      document.getElementById('name-input').focus();
+      return;
+    }
+    if (!amount || isNaN(amount) || amount <= 0) {
+      setFeedback(feedback, 'error', 'Por favor introduz um valor válido (mínimo €1).');
+      document.getElementById('amount-input').focus();
+      return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'A enviar…';
+
+    try {
+      const res = await fetch(`${API_BASE}/api/contributions`, {
+        method: 'POST',
+        headers: guestHeaders(),
+        body: JSON.stringify({ item_id: itemId, contributor_name: contributorName, amount, message }),
+      });
+
+      const json = await res.json();
+
+      if (!res.ok) {
+        throw new Error(json.error || `Server error (${res.status})`);
+      }
+
+      setFeedback(feedback, 'success', '🎉 Obrigado pela tua contribuição! A lista de presentes foi atualizada.');
+      form.reset();
+
+      // Reload gift cards to show updated progress bars
+      await loadGifts();
+
+      // Scroll back up to registry so they can see the updated card
+      document.getElementById('gifts').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    } catch (err) {
+      setFeedback(feedback, 'error', err.message || 'Ocorreu um erro. Por favor tenta novamente.');
+      console.error('Contribution error:', err);
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Contribuir';
+    }
+  });
+}
+
+// =============================================================
+// AI CHATBOT
+// =============================================================
+
+function initChatbot() {
+  const toggle = document.getElementById('chatbot-toggle');
+  const panel = document.getElementById('chatbot-panel');
+  const closeBtn = document.getElementById('chatbot-close');
+  const chatForm = document.getElementById('chatbot-form');
+  const chatInput = document.getElementById('chatbot-input');
+  const messages = document.getElementById('chatbot-messages');
+  if (!toggle || !panel || !chatForm || !chatInput || !messages) return;
+
+  function openPanel() {
+    panel.hidden = false;
+    toggle.setAttribute('aria-expanded', 'true');
+    toggle.setAttribute('aria-label', 'Fechar assistente de presentes');
+    chatInput.focus();
+    scrollMessages();
+  }
+
+  function closePanel() {
+    panel.hidden = true;
+    toggle.setAttribute('aria-expanded', 'false');
+    toggle.setAttribute('aria-label', 'Abrir assistente de presentes');
+  }
+
+  toggle.addEventListener('click', () => {
+    if (panel.hidden) openPanel(); else closePanel();
+  });
+
+  closeBtn.addEventListener('click', closePanel);
+
+  // Close on Escape key
+  panel.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closePanel();
+  });
+
+  chatForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const userMsg = chatInput.value.trim();
+    if (!userMsg) return;
+
+    appendMessage('user', userMsg);
+    chatInput.value = '';
+    chatInput.disabled = true;
+
+    const typingEl = appendMessage('typing', 'A pensar…');
+
+    try {
+      const res = await fetch(`${API_BASE}/api/chat`, {
+        method: 'POST',
+        headers: guestHeaders(),
+        body: JSON.stringify({ message: userMsg }),
+      });
+      const json = await res.json();
+      typingEl.remove();
+      if (res.status === 429) {
+        appendMessage('bot', json.error || 'Limite de mensagens atingido para hoje. Tenta amanhã!');
+      } else {
+        appendMessage('bot', json.reply || 'Desculpa, não consegui obter uma resposta agora. Tenta novamente.');
+      }
+    } catch (err) {
+      typingEl.remove();
+      appendMessage('bot', 'Estou com dificuldades de ligação. Por favor tenta novamente em breve!');
+      console.error('Chat error:', err);
+    } finally {
+      chatInput.disabled = false;
+      chatInput.focus();
+    }
+  });
+
+  function appendMessage(type, text) {
+    const el = document.createElement('div');
+    el.className = `chatbot__message chatbot__message--${type}`;
+    el.textContent = text;
+    messages.appendChild(el);
+    scrollMessages();
+    return el;
+  }
+
+  function scrollMessages() {
+    messages.scrollTop = messages.scrollHeight;
+  }
+}
+
+// =============================================================
+// SCROLL SPY — Highlight active nav link
+// =============================================================
+
+function initScrollSpy() {
+  const sections = document.querySelectorAll('section[id]');
+  const links = document.querySelectorAll('.nav__links a');
+  if (!sections.length || !links.length) return;
+
+  const observer = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          links.forEach((link) => {
+            const isActive = link.getAttribute('href') === `#${entry.target.id}`;
+            link.style.color = isActive ? 'var(--color-text)' : '';
+          });
+        }
+      });
+    },
+    { rootMargin: '-40% 0px -55% 0px', threshold: 0 }
+  );
+
+  sections.forEach((s) => observer.observe(s));
+}
+
+// =============================================================
+// INIT
+// =============================================================
+
+document.addEventListener('DOMContentLoaded', async () => {
+  const authed = await initGuestGate();
+  if (!authed) return;
+
+  await loadGifts();
+  initContributionForm();
+  initChatbot();
+  initScrollSpy();
+});
