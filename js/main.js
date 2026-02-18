@@ -409,6 +409,10 @@ function initChatbot() {
         if (json.contribution_pending) {
           appendContributionCard(json.contribution_pending);
         }
+        // Cancellation confirmation card
+        if (json.cancellation_pending) {
+          appendCancellationCard(json.cancellation_pending);
+        }
       }
     } catch (err) {
       typingEl.remove();
@@ -470,6 +474,50 @@ function initChatbot() {
         '<span style="font-size:var(--text-sm);color:var(--color-text-muted)">Contribuição cancelada.</span>';
       chatHistory.length = 0;
       appendMessage('bot', 'Sem problema! Se quiseres contribuir mais tarde, usa o botão "Contribuir" em qualquer presente. 😊');
+    });
+  }
+
+  function appendCancellationCard(cancellation) {
+    const card = document.createElement('div');
+    card.className = 'chatbot__contribution-card';
+    card.innerHTML = `
+      <p class="chatbot__contribution-title">Cancelar contribuição</p>
+      <ul class="chatbot__contribution-details">
+        <li><strong>Presente:</strong> ${escHtml(cancellation.item_title)}</li>
+        <li><strong>Valor:</strong> €${Number(cancellation.amount).toFixed(2)}</li>
+      </ul>
+      <div class="chatbot__contribution-actions">
+        <button class="btn btn--primary btn--sm chatbot__confirm-cancel-btn">Confirmar cancelamento</button>
+        <button class="btn btn--outline btn--sm chatbot__abort-cancel-btn">Manter contribuição</button>
+      </div>
+    `;
+    messages.appendChild(card);
+    scrollMessages();
+
+    card.querySelector('.chatbot__confirm-cancel-btn').addEventListener('click', async () => {
+      card.querySelector('.chatbot__contribution-actions').innerHTML =
+        '<span style="font-size:var(--text-sm);color:var(--color-text-muted)">A processar…</span>';
+      try {
+        const res = await fetch(`${API_BASE}/api/my-contributions/${cancellation.contribution_id}`, {
+          method: 'DELETE',
+          headers: guestHeaders(),
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || 'Erro ao cancelar');
+        card.querySelector('.chatbot__contribution-actions').innerHTML =
+          '<span style="color:var(--color-funded);font-weight:600">✓ Contribuição cancelada!</span>';
+        chatHistory.length = 0;
+        await loadGifts();
+      } catch (err) {
+        card.querySelector('.chatbot__contribution-actions').innerHTML =
+          `<span style="color:var(--color-error);font-size:var(--text-sm)">${escHtml(err.message)}</span>`;
+      }
+    });
+
+    card.querySelector('.chatbot__abort-cancel-btn').addEventListener('click', () => {
+      card.querySelector('.chatbot__contribution-actions').innerHTML =
+        '<span style="font-size:var(--text-sm);color:var(--color-text-muted)">Cancelamento ignorado. A tua contribuição mantém-se! 🎁</span>';
+      chatHistory.length = 0;
     });
   }
 
