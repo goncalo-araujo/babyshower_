@@ -108,9 +108,14 @@ function getIP(request: Request): string {
 // Route Handlers
 // =============================================================
 
+const GENERIC_DONATION_TITLE = "Doação Geral para Mobilía/Obras";
+
 async function handleGetItems(env: Env, origin: string): Promise<Response> {
   const { results } = await env.DB.prepare(
-    "SELECT * FROM items ORDER BY is_funded ASC, created_at ASC"
+    `SELECT * FROM items ORDER BY
+      CASE WHEN title = '${GENERIC_DONATION_TITLE}' THEN 1 ELSE 0 END ASC,
+      is_funded ASC,
+      created_at ASC`
   ).all<Item>();
   return jsonResponse(results, 200, origin);
 }
@@ -384,7 +389,9 @@ async function handleChat(
   // Fetch current gift state for AI context
   const { results: items } = await env.DB.prepare(
     `SELECT id, title, description, price_total, price_raised, is_funded, product_url
-     FROM items ORDER BY is_funded ASC, created_at ASC`
+     FROM items ORDER BY
+       CASE WHEN title = '${GENERIC_DONATION_TITLE}' THEN 1 ELSE 0 END ASC,
+       is_funded ASC, created_at ASC`
   ).all<Item>();
 
   // Fetch this guest's own contributions for AI context

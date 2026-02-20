@@ -159,6 +159,14 @@ async function loadGifts() {
     return;
   }
 
+  // Sort: generic donation always last
+  const GENERIC_DONATION = 'Doação Geral para Mobilía/Obras';
+  items.sort((a, b) => {
+    if (a.title === GENERIC_DONATION) return 1;
+    if (b.title === GENERIC_DONATION) return -1;
+    return 0;
+  });
+
   items.forEach((item) => {
     // Render card
     const card = createGiftCard(item);
@@ -168,7 +176,10 @@ async function loadGifts() {
     const option = document.createElement('option');
     option.value = item.id;
     const isFunded = item.is_funded === 1 || item.is_funded === true;
-    option.textContent = `${item.title} — €${Number(item.price_total).toFixed(2)}${isFunded ? ' (Totalmente Financiado)' : ''}`;
+    const isGenericDonation = item.title === GENERIC_DONATION;
+    option.textContent = isGenericDonation
+      ? item.title
+      : `${item.title} — €${Number(item.price_total).toFixed(2)}${isFunded ? ' (Totalmente Financiado)' : ''}`;
     if (isFunded) option.disabled = true;
     select.appendChild(option);
   });
@@ -180,6 +191,8 @@ async function loadGifts() {
  * @returns {HTMLElement}
  */
 function createGiftCard(item) {
+  const GENERIC_DONATION = 'Doação Geral para Mobilía/Obras';
+  const isGenericDonation = item.title === GENERIC_DONATION;
   const isFunded = item.is_funded === 1 || item.is_funded === true;
   const priceTotal = Number(item.price_total);
   const priceRaised = Number(item.price_raised);
@@ -224,8 +237,8 @@ function createGiftCard(item) {
       ${isFunded ? '<span class="gift-card__funded-badge" aria-label="Totalmente financiado">Totalmente Financiado ✓</span>' : ''}
       <h3 class="gift-card__title">${escHtml(item.title)}</h3>
       ${item.description ? `<p class="gift-card__description">${escHtml(item.description)}</p>` : ''}
-      <p class="gift-card__price">€${priceTotal.toFixed(2)}</p>
-      <div class="progress-wrap">
+      ${!isGenericDonation ? `<p class="gift-card__price">€${priceTotal.toFixed(2)}</p>` : ''}
+      ${!isGenericDonation ? `<div class="progress-wrap">
         <div
           class="progress-bar"
           role="progressbar"
@@ -240,7 +253,7 @@ function createGiftCard(item) {
           <span aria-hidden="true">&nbsp;·&nbsp;</span>
           <strong>${pct}%</strong>
         </p>
-      </div>
+      </div>` : ''}
       <div class="gift-card__actions">
         ${viewLink}
         ${contributeBtn}
