@@ -418,7 +418,28 @@ function initChatbot() {
   // Conversation history sent to worker for context
   const chatHistory = [];
 
+  const nudge = document.getElementById('chatbot-nudge');
+  const nudgeClose = document.getElementById('chatbot-nudge-close');
+
+  function dismissNudge() {
+    if (nudge) nudge.hidden = true;
+    toggle.classList.remove('chatbot__toggle--pulse');
+  }
+
+  // Show nudge + pulse after 3 s (only if panel not already open)
+  setTimeout(() => {
+    if (panel.hidden && nudge) {
+      nudge.hidden = false;
+      toggle.classList.add('chatbot__toggle--pulse');
+      // Auto-dismiss after 9 s
+      setTimeout(dismissNudge, 9000);
+    }
+  }, 3000);
+
+  if (nudgeClose) nudgeClose.addEventListener('click', dismissNudge);
+
   function openPanel() {
+    dismissNudge();
     panel.hidden = false;
     toggle.setAttribute('aria-expanded', 'true');
     toggle.setAttribute('aria-label', 'Fechar assistente de presentes');
