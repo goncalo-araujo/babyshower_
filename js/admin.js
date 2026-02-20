@@ -136,6 +136,8 @@ async function loadItems() {
   }
 }
 
+const GENERIC_DONATION_TITLE = 'Doação Geral para Mobilía/Obras';
+
 function renderItemsTable(items) {
   const wrap = document.getElementById('items-table-wrap');
 
@@ -149,6 +151,7 @@ function renderItemsTable(items) {
 
   const rows = items.map((item) => {
     const isFunded = item.is_funded === 1 || item.is_funded === true;
+    const isGenericDonation = item.title === GENERIC_DONATION_TITLE;
     const pct = item.price_total > 0
       ? Math.round((Number(item.price_raised) / Number(item.price_total)) * 100)
       : 0;
@@ -157,17 +160,21 @@ function renderItemsTable(items) {
         <td style="color:var(--color-text-muted);font-size:var(--text-xs)">#${item.id}</td>
         <td>
           <strong>${escHtml(item.title)}</strong>
+          ${isGenericDonation ? ' <span style="font-size:var(--text-xs);color:var(--color-text-muted);font-style:italic">(doação genérica)</span>' : ''}
           ${item.image_url ? `<br><a href="${escHtml(item.image_url)}" target="_blank" rel="noopener" style="font-size:var(--text-xs);color:var(--color-text-muted)">Imagem ↗</a>` : ''}
         </td>
-        <td>€${Number(item.price_total).toFixed(2)}</td>
+        <td>${isGenericDonation ? '<span style="color:var(--color-text-muted);font-style:italic">—</span>' : `€${Number(item.price_total).toFixed(2)}`}</td>
         <td>€${Number(item.price_raised).toFixed(2)}</td>
         <td>
-          <div style="display:flex;align-items:center;gap:var(--space-2);">
+          ${isGenericDonation
+            ? '<span style="color:var(--color-text-muted);font-size:var(--text-xs);font-style:italic">—</span>'
+            : `<div style="display:flex;align-items:center;gap:var(--space-2);">
             <div style="flex:1;height:4px;background:var(--color-border);border-radius:999px;min-width:60px;overflow:hidden;">
               <div style="width:${pct}%;height:100%;background:${isFunded ? 'var(--color-funded)' : 'var(--color-accent)'};border-radius:999px;"></div>
             </div>
             <span style="font-size:var(--text-xs);color:var(--color-text-muted);white-space:nowrap">${pct}%</span>
-          </div>
+          </div>`
+          }
         </td>
         <td>
           ${isFunded
@@ -176,7 +183,9 @@ function renderItemsTable(items) {
           }
         </td>
         <td>
-          <div class="admin-table__actions">
+          ${isGenericDonation
+            ? '<span style="color:var(--color-text-muted);font-size:var(--text-xs);font-style:italic">Fixo</span>'
+            : `<div class="admin-table__actions">
             <button class="btn btn--outline btn--sm" onclick="openEditModal(${item.id})">Editar</button>
             <button
               class="btn btn--outline btn--sm"
@@ -184,7 +193,8 @@ function renderItemsTable(items) {
               onclick="confirmDeleteItem(${item.id}, '${escHtml(item.title).replace(/'/g, "\\'")}')">
               Eliminar
             </button>
-          </div>
+          </div>`
+          }
         </td>
       </tr>
     `;
