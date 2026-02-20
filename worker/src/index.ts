@@ -444,6 +444,7 @@ EVENT DETAILS:
 - Directions: Guests should use Google Maps or Waze with "Messe Militar de Évora" as the destination.
 - Parking: Yes — there is parking available inside the Messe Militar de Évora grounds.
 - Food: Yes — there will be a traditional Portuguese "lanche" (afternoon snacks/tea).
+- Payment: Contributions are pledges — after confirming, guests should send the amount via MB Way or contact Gonçalo or Inês directly for details.
 
 GIFT REGISTRY:
 ${giftContext}
