@@ -122,9 +122,9 @@ function setFeedback(el, type, msg) {
   el.className = 'form__feedback';
   if (type) {
     el.classList.add(`show--${type}`);
-    el.textContent = msg ?? '';
+    el.innerHTML = msg ?? '';
   } else {
-    el.textContent = '';
+    el.innerHTML = '';
   }
 }
 
@@ -383,7 +383,7 @@ function initContributionForm() {
         throw new Error(json.error || `Server error (${res.status})`);
       }
 
-      setFeedback(feedback, 'success', '🎉 Obrigado pela tua contribuição! A lista de presentes foi atualizada.');
+      setFeedback(feedback, 'success', '🎉 Contribuição registada! Para completar, envia o valor via <strong>MB Way</strong> ou fala connosco para mais detalhes. Obrigado! 💚');
       form.reset();
 
       // Reload gift cards and my contributions
@@ -469,7 +469,7 @@ function initChatbot() {
     const userMsg = chatInput.value.trim();
     if (!userMsg) return;
 
-    appendMessage('user', userMsg);
+    appendMessage('user', escHtml(userMsg));
     chatHistory.push({ role: 'user', content: userMsg });
     chatInput.value = '';
     chatInput.disabled = true;
@@ -548,6 +548,8 @@ function initChatbot() {
         card.querySelector('.chatbot__contribution-actions').innerHTML =
           '<span style="color:var(--color-funded);font-weight:600">✓ Contribuição registada! Obrigado 🎁</span>';
         chatHistory.length = 0;
+        // MB Way nudge
+        appendMessage('bot', `Obrigado! 💚 Para completar, envia €${Number(contribution.amount).toFixed(2)} via <strong>MB Way</strong> ou fala connosco para mais detalhes. 😊`);
         await Promise.all([loadGifts(), loadMyContributions()]);
       } catch (err) {
         card.querySelector('.chatbot__contribution-actions').innerHTML =
@@ -673,7 +675,7 @@ function initChatbot() {
   function appendMessage(type, text) {
     const el = document.createElement('div');
     el.className = `chatbot__message chatbot__message--${type}`;
-    el.textContent = text;
+    el.innerHTML = text;
     messages.appendChild(el);
     scrollMessages();
     return el;
