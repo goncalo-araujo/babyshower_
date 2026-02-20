@@ -217,7 +217,7 @@ function createGiftCard(item) {
     : `<div class="gift-card__image--placeholder" aria-hidden="true">🎁</div>`;
 
   // Build actions
-  const viewLink = item.product_url
+  const viewLink = item.product_url && !isGenericDonation
     ? `<a class="btn btn--outline" href="${escHtml(item.product_url)}" target="_blank" rel="noopener noreferrer" aria-label="Ver ${escHtml(item.title)} online">Ver Produto ↗</a>`
     : '';
 
