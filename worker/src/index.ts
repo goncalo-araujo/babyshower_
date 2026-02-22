@@ -263,14 +263,41 @@ async function handleCreateContribution(
     .bind(itemId)
     .first<Item>();
   if (!item) return jsonResponse({ error: "Item not found" }, 404, origin);
-  if (item.is_funded === 1) {
-    return jsonResponse({ error: "This item is already fully funded" }, 409, origin);
+
+  // Double-booking protection: only enforce for priced items (price_total > 0)
+  if (item.price_total > 0) {
+    if (item.is_funded === 1) {
+      return jsonResponse(
+        { error: "Este presente já foi totalmente coberto por outra contribuição." },
+        409,
+        origin
+      );
+    }
+    const liveRemaining = item.price_total - item.price_raised;
+    if (liveRemaining <= 0) {
+      return jsonResponse(
+        { error: "Este presente já foi totalmente coberto por outra contribuição." },
+        409,
+        origin
+      );
+    }
+    if (amount > liveRemaining) {
+      return jsonResponse(
+        {
+          error: `Só faltam €${liveRemaining.toFixed(2)} para cobrir este presente na totalidade.`,
+          remaining: liveRemaining,
+        },
+        409,
+        origin
+      );
+    }
   }
 
-  const remaining = item.price_total - item.price_raised;
+  // For items with no price cap (price_total = 0, e.g. generic donation) accept any amount
+  const remaining = item.price_total > 0 ? item.price_total - item.price_raised : amount;
   const appliedAmount = Math.min(amount, remaining);
   const newRaised = item.price_raised + appliedAmount;
-  const isFunded = newRaised >= item.price_total ? 1 : 0;
+  const isFunded = item.price_total > 0 && newRaised >= item.price_total ? 1 : 0;
   const contributorIp = getIP(request);
 
   await env.DB.batch([
@@ -413,8 +440,15 @@ async function handleChat(
     items.length > 0
       ? items
           .map((item) => {
-            const status = item.is_funded ? "fully funded" : `€${Number(item.price_raised).toFixed(2)} raised of €${Number(item.price_total).toFixed(2)}`;
-            return `- [ID:${item.id}] ${item.title}: ${item.description} | Price: €${Number(item.price_total).toFixed(2)} | Status: ${status}`;
+            const total = Number(item.price_total);
+            const raised = Number(item.price_raised);
+            const remaining = total > 0 ? total - raised : null;
+            const status = item.is_funded
+              ? "fully funded"
+              : total > 0
+                ? `€${raised.toFixed(2)} raised of €${total.toFixed(2)} — €${remaining!.toFixed(2)} still needed`
+                : `open donation (no fixed price)`;
+            return `- [ID:${item.id}] ${item.title}: ${item.description} | Price: €${total.toFixed(2)} | Status: ${status}`;
           })
           .join("\n")
       : "No gift items have been added yet.";
@@ -475,6 +509,7 @@ Guidelines:
 - IMPORTANT: Always respond in European Portuguese (Portugal). Use "autocarro" not "ônibus", "telemóvel" not "celular", "casa de banho" not "banheiro", etc.
 - Answer questions about the event, the family, the baby, the nursery theme, etc.
 - When asked for gift recommendations, prioritise items that are NOT yet fully funded.
+- If a guest says they want to cover the full amount / pay for the whole item, use the "still needed" remaining amount from the gift registry context as the contribution amount (e.g. if an item costs €120 and €40 has been raised, the full remaining amount is €80).
 - Do not discuss topics unrelated to the baby shower, the family, or the gift registry.
 - Always respond in European Portuguese (Portugal). This is mandatory.`;
 
