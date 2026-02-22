@@ -21,6 +21,7 @@ interface Item {
   price_raised: number;
   is_funded: number;
   sort_order: number;
+  is_generic: number;
   created_at: string;
 }
 
@@ -109,12 +110,10 @@ function getIP(request: Request): string {
 // Route Handlers
 // =============================================================
 
-const GENERIC_DONATION_TITLE = "Doação Geral para Mobilía/Obras";
-
 async function handleGetItems(env: Env, origin: string): Promise<Response> {
   const { results } = await env.DB.prepare(
     `SELECT * FROM items ORDER BY
-      CASE WHEN title = '${GENERIC_DONATION_TITLE}' THEN 999999 ELSE sort_order END ASC,
+      CASE WHEN is_generic = 1 THEN 999999 ELSE sort_order END ASC,
       id ASC`
   ).all<Item>();
   return jsonResponse(results, 200, origin);
@@ -420,9 +419,9 @@ async function handleChat(
 
   // Fetch current gift state for AI context
   const { results: items } = await env.DB.prepare(
-    `SELECT id, title, description, price_total, price_raised, is_funded, product_url
+    `SELECT id, title, description, price_total, price_raised, is_funded, is_generic, product_url
      FROM items ORDER BY
-       CASE WHEN title = '${GENERIC_DONATION_TITLE}' THEN 999999 ELSE sort_order END ASC,
+       CASE WHEN is_generic = 1 THEN 999999 ELSE sort_order END ASC,
        id ASC`
   ).all<Item>();
 
@@ -445,9 +444,11 @@ async function handleChat(
             const remaining = total > 0 ? total - raised : null;
             const status = item.is_funded
               ? "fully funded"
-              : total > 0
-                ? `€${raised.toFixed(2)} raised of €${total.toFixed(2)} — €${remaining!.toFixed(2)} still needed`
-                : `open donation (no fixed price)`;
+              : item.is_generic
+                ? `open donation — €${raised.toFixed(2)} received so far`
+                : total > 0
+                  ? `€${raised.toFixed(2)} raised of €${total.toFixed(2)} — €${remaining!.toFixed(2)} still needed`
+                  : `open donation (no fixed price)`;
             return `- [ID:${item.id}] ${item.title}: ${item.description} | Price: €${total.toFixed(2)} | Status: ${status}`;
           })
           .join("\n")

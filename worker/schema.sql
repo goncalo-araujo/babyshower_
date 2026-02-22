@@ -12,6 +12,8 @@ CREATE TABLE IF NOT EXISTS items (
   price_total  REAL    NOT NULL DEFAULT 0.0 CHECK(price_total >= 0),
   price_raised REAL    NOT NULL DEFAULT 0.0 CHECK(price_raised >= 0),
   is_funded    INTEGER NOT NULL DEFAULT 0 CHECK(is_funded IN (0,1)),
+  sort_order   INTEGER NOT NULL DEFAULT 0,
+  is_generic   INTEGER NOT NULL DEFAULT 0 CHECK(is_generic IN (0,1)),
   created_at   TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 

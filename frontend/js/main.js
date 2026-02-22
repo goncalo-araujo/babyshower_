@@ -162,16 +162,18 @@ async function loadGifts() {
     return;
   }
 
-  // Sort: generic donation always last
-  const GENERIC_DONATION = 'Doação Geral para Mobilía/Obras';
-  items.sort((a, b) => {
-    if (a.title === GENERIC_DONATION) return 1;
-    if (b.title === GENERIC_DONATION) return -1;
-    return 0;
-  });
-
   // Cache items for form hint lookups
   giftItems = items;
+
+  // Sort: generic donation always last (is_generic flag; title match as fallback)
+  const GENERIC_DONATION = 'Doação Geral para Mobília/Obras';
+  items.sort((a, b) => {
+    const aG = a.is_generic === 1 || a.is_generic === true || a.title === GENERIC_DONATION;
+    const bG = b.is_generic === 1 || b.is_generic === true || b.title === GENERIC_DONATION;
+    if (aG) return 1;
+    if (bG) return -1;
+    return 0;
+  });
 
   items.forEach((item) => {
     // Render card
@@ -182,7 +184,7 @@ async function loadGifts() {
     const option = document.createElement('option');
     option.value = item.id;
     const isFunded = item.is_funded === 1 || item.is_funded === true;
-    const isGenericDonation = item.title === GENERIC_DONATION;
+    const isGenericDonation = item.is_generic === 1 || item.is_generic === true;
     option.textContent = isGenericDonation
       ? item.title
       : `${item.title} — €${Number(item.price_total).toFixed(2)}${isFunded ? ' (Totalmente Financiado)' : ''}`;
@@ -197,8 +199,7 @@ async function loadGifts() {
  * @returns {HTMLElement}
  */
 function createGiftCard(item) {
-  const GENERIC_DONATION = 'Doação Geral para Mobilía/Obras';
-  const isGenericDonation = item.title === GENERIC_DONATION;
+  const isGenericDonation = item.is_generic === 1 || item.is_generic === true;
   const isFunded = item.is_funded === 1 || item.is_funded === true;
   const priceTotal = Number(item.price_total);
   const priceRaised = Number(item.price_raised);
@@ -385,7 +386,7 @@ function initContributionForm() {
       if (!selectedId) return;
       const selectedItem = giftItems.find(i => i.id === selectedId);
       if (!selectedItem || !selectedItem.price_total) return;
-      if (selectedItem.title === GENERIC_DONATION) return;
+      if (selectedItem.is_generic === 1 || selectedItem.is_generic === true) return;
       const isItemFunded = selectedItem.is_funded === 1 || selectedItem.is_funded === true;
       if (isItemFunded) return;
       const itemRemaining = Number(selectedItem.price_total) - Number(selectedItem.price_raised);
