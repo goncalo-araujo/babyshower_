@@ -20,6 +20,7 @@ interface Item {
   price_total: number;
   price_raised: number;
   is_funded: number;
+  sort_order: number;
   created_at: string;
 }
 
@@ -50,7 +51,7 @@ const MAX_GENERIC_STRING = 500;
 function corsHeaders(origin: string): Record<string, string> {
   return {
     "Access-Control-Allow-Origin": origin,
-    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, X-Admin-Password, X-Guest-Password",
     "Access-Control-Max-Age": "86400",
   };
@@ -113,9 +114,8 @@ const GENERIC_DONATION_TITLE = "Doação Geral para Mobilía/Obras";
 async function handleGetItems(env: Env, origin: string): Promise<Response> {
   const { results } = await env.DB.prepare(
     `SELECT * FROM items ORDER BY
-      CASE WHEN title = '${GENERIC_DONATION_TITLE}' THEN 1 ELSE 0 END ASC,
-      is_funded ASC,
-      created_at ASC`
+      CASE WHEN title = '${GENERIC_DONATION_TITLE}' THEN 999999 ELSE sort_order END ASC,
+      id ASC`
   ).all<Item>();
   return jsonResponse(results, 200, origin);
 }
@@ -136,16 +136,21 @@ async function handleCreateItem(
   if (body.price_total === undefined || body.price_total < 0) {
     return jsonResponse({ error: "price_total must be >= 0" }, 400, origin);
   }
+  const maxRow = await env.DB.prepare(
+    "SELECT COALESCE(MAX(sort_order), -1) as max_order FROM items"
+  ).first<{ max_order: number }>();
+  const nextOrder = (maxRow?.max_order ?? -1) + 1;
   const result = await env.DB.prepare(
-    `INSERT INTO items (title, description, image_url, product_url, price_total)
-     VALUES (?, ?, ?, ?, ?)`
+    `INSERT INTO items (title, description, image_url, product_url, price_total, sort_order)
+     VALUES (?, ?, ?, ?, ?, ?)`
   )
     .bind(
       title,
       sanitise(body.description, MAX_GENERIC_STRING),
       sanitise(body.image_url, MAX_GENERIC_STRING),
       sanitise(body.product_url, MAX_GENERIC_STRING),
-      Number(body.price_total)
+      Number(body.price_total),
+      nextOrder
     )
     .run();
   return jsonResponse({ id: result.meta.last_row_id }, 201, origin);
@@ -390,8 +395,8 @@ async function handleChat(
   const { results: items } = await env.DB.prepare(
     `SELECT id, title, description, price_total, price_raised, is_funded, product_url
      FROM items ORDER BY
-       CASE WHEN title = '${GENERIC_DONATION_TITLE}' THEN 1 ELSE 0 END ASC,
-       is_funded ASC, created_at ASC`
+       CASE WHEN title = '${GENERIC_DONATION_TITLE}' THEN 999999 ELSE sort_order END ASC,
+       id ASC`
   ).all<Item>();
 
   // Fetch this guest's own contributions for AI context
@@ -657,6 +662,25 @@ async function handleAdminAuth(
   return jsonResponse({ error: "Incorrect password" }, 401, origin);
 }
 
+async function handleReorderItems(
+  request: Request,
+  env: Env,
+  origin: string
+): Promise<Response> {
+  if (!isAdmin(request, env)) {
+    return jsonResponse({ error: "Unauthorized" }, 401, origin);
+  }
+  const body = (await request.json()) as { order: { id: number; sort_order: number }[] };
+  if (!Array.isArray(body?.order)) {
+    return jsonResponse({ error: "Invalid payload" }, 400, origin);
+  }
+  const stmts = body.order.map(({ id, sort_order }) =>
+    env.DB.prepare("UPDATE items SET sort_order = ? WHERE id = ?").bind(sort_order, id)
+  );
+  if (stmts.length > 0) await env.DB.batch(stmts);
+  return jsonResponse({ ok: true }, 200, origin);
+}
+
 async function handleGuestAuth(
   request: Request,
   env: Env,
@@ -713,6 +737,9 @@ export default {
       }
       if (method === "DELETE" && /^\/api\/items\/\d+$/.test(pathname)) {
         return await handleDeleteItem(request, env, origin, extractId(pathname));
+      }
+      if (method === "PATCH" && pathname === "/api/items/reorder") {
+        return await handleReorderItems(request, env, origin);
       }
 
       // --- Contributions (guest/admin write, admin read) ---

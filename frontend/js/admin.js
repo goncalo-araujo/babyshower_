@@ -156,7 +156,8 @@ function renderItemsTable(items) {
       ? Math.round((Number(item.price_raised) / Number(item.price_total)) * 100)
       : 0;
     return `
-      <tr>
+      <tr data-id="${item.id}" ${!isGenericDonation ? 'draggable="true"' : ''}>
+        <td class="drag-handle" ${isGenericDonation ? 'style="opacity:0.2;cursor:default"' : ''} aria-hidden="true">☰</td>
         <td style="color:var(--color-text-muted);font-size:var(--text-xs)">#${item.id}</td>
         <td>
           <strong>${escHtml(item.title)}</strong>
@@ -190,7 +191,7 @@ function renderItemsTable(items) {
             <button
               class="btn btn--outline btn--sm"
               style="color:var(--color-error);border-color:var(--color-error);"
-              onclick="confirmDeleteItem(${item.id}, '${escHtml(item.title).replace(/'/g, "\\'")}')">
+              onclick="confirmDeleteItem(${item.id}, '${escHtml(item.title).replace(/'/g, "\\'")}')">  
               Eliminar
             </button>
           </div>`
@@ -204,6 +205,7 @@ function renderItemsTable(items) {
     <table class="admin-table">
       <thead>
         <tr>
+          <th style="width:36px"></th>
           <th>ID</th>
           <th>Nome</th>
           <th>Objetivo</th>
@@ -216,6 +218,8 @@ function renderItemsTable(items) {
       <tbody>${rows}</tbody>
     </table>
   `;
+
+  initDragSort(wrap.querySelector('tbody'));
 }
 
 // =============================================================
@@ -234,6 +238,68 @@ function openAddModal() {
   setFeedback(document.getElementById('modal-feedback'), null);
   document.getElementById('item-modal').hidden = false;
   document.getElementById('item-title').focus();
+}
+
+// =============================================================
+// GIFT ITEMS — Drag & drop reorder
+// =============================================================
+
+function initDragSort(tbody) {
+  let dragSrcRow = null;
+
+  tbody.querySelectorAll('tr[draggable="true"]').forEach(row => {
+    row.addEventListener('dragstart', (e) => {
+      dragSrcRow = row;
+      row.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+
+    row.addEventListener('dragend', () => {
+      tbody.querySelectorAll('tr').forEach(r => r.classList.remove('drag-over', 'dragging'));
+      dragSrcRow = null;
+    });
+
+    row.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      if (!dragSrcRow || row === dragSrcRow) return;
+      e.dataTransfer.dropEffect = 'move';
+      tbody.querySelectorAll('tr').forEach(r => r.classList.remove('drag-over'));
+      row.classList.add('drag-over');
+    });
+
+    row.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      if (!dragSrcRow || row === dragSrcRow) return;
+      tbody.querySelectorAll('tr').forEach(r => r.classList.remove('drag-over', 'dragging'));
+      const allRows = [...tbody.querySelectorAll('tr[draggable="true"]')];
+      const srcIndex = allRows.indexOf(dragSrcRow);
+      const tgtIndex = allRows.indexOf(row);
+      if (srcIndex < tgtIndex) {
+        row.after(dragSrcRow);
+      } else {
+        row.before(dragSrcRow);
+      }
+      dragSrcRow = null;
+      await saveItemOrder(tbody);
+    });
+  });
+}
+
+async function saveItemOrder(tbody) {
+  const order = [...tbody.querySelectorAll('tr[draggable="true"]')].map((r, i) => ({
+    id: parseInt(r.dataset.id, 10),
+    sort_order: i,
+  }));
+  try {
+    const res = await fetch(`${API_BASE}/api/items/reorder`, {
+      method: 'PATCH',
+      headers: adminHeaders(),
+      body: JSON.stringify({ order }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  } catch (err) {
+    console.error('Failed to save item order:', err);
+  }
 }
 
 function openEditModal(id) {
