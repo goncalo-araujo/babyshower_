@@ -777,6 +777,35 @@ h1, h2, h3, h4 {
   border: 1px solid rgba(176, 64, 64, 0.2);
 }
 
+/* Remaining-amount hint below the amount field */
+.form__amount-hint {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  margin-top: var(--space-1);
+}
+
+/* Inline "fill" button inside hints and error messages */
+.form__fill-remaining-btn {
+  background: none;
+  border: none;
+  color: var(--color-primary);
+  cursor: pointer;
+  font-size: inherit;
+  font-family: inherit;
+  padding: 0;
+  text-decoration: underline;
+  vertical-align: baseline;
+}
+.form__fill-remaining-btn:hover {
+  opacity: 0.75;
+}
+
+/* "Cover full remaining" button on gift cards — full row when wrapped */
+.pay-full-btn {
+  font-size: var(--text-sm);
+  flex: 1 1 100%;
+}
+
 /* =============================================================
    MY CONTRIBUTIONS (page-level, below contribution form)
    ============================================================= */

@@ -9,6 +9,9 @@
 // Production: replace YOUR_SUBDOMAIN with your Cloudflare subdomain (e.g. goncaloaraujo)
 const API_BASE = 'https://babyshower-worker.goncalo-araujo.workers.dev';
 
+// Cache of loaded gift items (used to look up remaining amounts for the form hint)
+let giftItems = [];
+
 // =============================================================
 // GUEST AUTH — password stored in sessionStorage for the tab lifetime
 // =============================================================
@@ -167,6 +170,9 @@ async function loadGifts() {
     return 0;
   });
 
+  // Cache items for form hint lookups
+  giftItems = items;
+
   items.forEach((item) => {
     // Render card
     const card = createGiftCard(item);
@@ -217,6 +223,8 @@ function createGiftCard(item) {
     : `<div class="gift-card__image--placeholder" aria-hidden="true">🎁</div>`;
 
   // Build actions
+  const remaining = priceTotal - priceRaised;
+
   const viewLink = item.product_url && !isGenericDonation
     ? `<a class="btn btn--outline" href="${escHtml(item.product_url)}" target="_blank" rel="noopener noreferrer" aria-label="Ver ${escHtml(item.title)} online">Ver Produto ↗</a>`
     : '';
@@ -230,6 +238,17 @@ function createGiftCard(item) {
          Contribuir
        </button>`
     : `<span class="btn btn--outline" style="pointer-events:none;opacity:0.5;cursor:default;" aria-disabled="true">Financiado ✓</span>`;
+
+  // "Cover full remaining" button — only for priced, non-funded items
+  const payFullBtn = !isFunded && !isGenericDonation && remaining > 0
+    ? `<button
+         class="btn btn--outline pay-full-btn"
+         data-item-id="${item.id}"
+         data-remaining="${remaining.toFixed(2)}"
+         aria-label="Cobrir o valor restante de €${remaining.toFixed(2)} para ${escHtml(item.title)}">
+         Cobrir valor restante (€${remaining.toFixed(2)})
+       </button>`
+    : '';
 
   article.innerHTML = `
     ${imageSection}
@@ -257,6 +276,7 @@ function createGiftCard(item) {
       <div class="gift-card__actions">
         ${viewLink}
         ${contributeBtn}
+        ${payFullBtn}
       </div>
     </div>
   `;
@@ -327,19 +347,58 @@ function initContributionForm() {
   const submitBtn = document.getElementById('submit-btn');
   if (!form || !feedback || !submitBtn) return;
 
-  // Clicking "Contribute" on a card pre-fills the select and scrolls to the form
+  // Clicking "Contribuir" pre-fills the select; "Cobrir valor restante" also pre-fills the amount
   grid && grid.addEventListener('click', (e) => {
-    const btn = e.target.closest('.contribute-btn');
+    const contributeTarget = e.target.closest('.contribute-btn');
+    const payFullTarget = e.target.closest('.pay-full-btn');
+    const btn = contributeTarget || payFullTarget;
     if (!btn) return;
     const { itemId } = btn.dataset;
     const select = document.getElementById('gift-select');
-    if (select) select.value = itemId;
+    if (select) {
+      select.value = itemId;
+      // Trigger change to update the amount hint
+      select.dispatchEvent(new Event('change'));
+    }
+    if (payFullTarget) {
+      const amountInput = document.getElementById('amount-input');
+      if (amountInput) amountInput.value = btn.dataset.remaining;
+      // Hide hint since we just filled it
+      const hint = document.getElementById('amount-hint');
+      if (hint) hint.hidden = true;
+    }
     document.getElementById('contribute').scrollIntoView({ behavior: 'smooth', block: 'start' });
     setTimeout(() => {
       const nameInput = document.getElementById('name-input');
       if (nameInput) nameInput.focus();
     }, 400);
   });
+
+  // When select changes, show remaining amount hint + "fill" shortcut
+  const selectEl = document.getElementById('gift-select');
+  const amountHint = document.getElementById('amount-hint');
+  if (selectEl && amountHint) {
+    selectEl.addEventListener('change', () => {
+      const selectedId = parseInt(selectEl.value, 10);
+      amountHint.hidden = true;
+      amountHint.innerHTML = '';
+      if (!selectedId) return;
+      const selectedItem = giftItems.find(i => i.id === selectedId);
+      if (!selectedItem || !selectedItem.price_total) return;
+      const isItemFunded = selectedItem.is_funded === 1 || selectedItem.is_funded === true;
+      if (isItemFunded) return;
+      const itemRemaining = Number(selectedItem.price_total) - Number(selectedItem.price_raised);
+      if (itemRemaining <= 0) return;
+      amountHint.innerHTML =
+        `Valor ainda em falta: <strong>€${itemRemaining.toFixed(2)}</strong> ` +
+        `<button type="button" class="form__fill-remaining-btn" data-remaining="${itemRemaining.toFixed(2)}">Preencher automaticamente</button>`;
+      amountHint.hidden = false;
+      amountHint.querySelector('.form__fill-remaining-btn').addEventListener('click', () => {
+        document.getElementById('amount-input').value = itemRemaining.toFixed(2);
+        amountHint.hidden = true;
+      });
+    });
+  }
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -380,6 +439,28 @@ function initContributionForm() {
       const json = await res.json();
 
       if (!res.ok) {
+        // Double-booking: amount exceeds remaining — offer to auto-fill the correct amount
+        if (res.status === 409 && json.remaining !== undefined) {
+          const rem = Number(json.remaining).toFixed(2);
+          setFeedback(feedback, 'error',
+            `${escHtml(json.error)} ` +
+            `<button type="button" class="form__fill-remaining-btn" data-remaining="${rem}">Preencher automaticamente</button>`
+          );
+          feedback.querySelector('.form__fill-remaining-btn')?.addEventListener('click', () => {
+            document.getElementById('amount-input').value = rem;
+            setFeedback(feedback, null);
+          });
+          return;
+        }
+        // Double-booking: item just got fully funded
+        if (res.status === 409) {
+          setFeedback(feedback, 'error',
+            'Este presente foi entretanto totalmente coberto por outra contribuição. ' +
+            'Por favor escolhe outro presente ou atualiza a página.'
+          );
+          await loadGifts();
+          return;
+        }
         throw new Error(json.error || `Server error (${res.status})`);
       }
 
@@ -544,12 +625,25 @@ function initChatbot() {
           }),
         });
         const json = await res.json();
-        if (!res.ok) throw new Error(json.error || 'Erro ao processar');
+        if (!res.ok) {
+          if (res.status === 409 && json.remaining !== undefined) {
+            const rem = Number(json.remaining).toFixed(2);
+            card.querySelector('.chatbot__contribution-actions').innerHTML =
+              `<span style="color:var(--color-error);font-size:var(--text-sm)">${escHtml(json.error)}</span>`;
+            chatHistory.length = 0;
+            appendMessage('bot',
+              `Entretanto, s\u00f3 faltam \u20ac${rem} para cobrir este presente. Quer que registe \u20ac${rem} em vez disso? Se sim, diz-me!`
+            );
+          } else {
+            throw new Error(json.error || 'Erro ao processar');
+          }
+          return;
+        }
         card.querySelector('.chatbot__contribution-actions').innerHTML =
-          '<span style="color:var(--color-funded);font-weight:600">✓ Contribuição registada! Obrigado 🎁</span>';
+          '<span style="color:var(--color-funded);font-weight:600">\u2713 Contribui\u00e7\u00e3o registada! Obrigado \ud83c\udf81</span>';
         chatHistory.length = 0;
         // MB Way nudge
-        appendMessage('bot', `Obrigado! 💚 Para completar, envia €${Number(contribution.amount).toFixed(2)} via <strong>MB Way</strong> ou fala connosco para mais detalhes. 😊`);
+        appendMessage('bot', `Obrigado! \ud83d\udc9a Para completar, envia \u20ac${Number(contribution.amount).toFixed(2)} via <strong>MB Way</strong> ou fala connosco para mais detalhes. \ud83d\ude0a`);
         await Promise.all([loadGifts(), loadMyContributions()]);
       } catch (err) {
         card.querySelector('.chatbot__contribution-actions').innerHTML =
