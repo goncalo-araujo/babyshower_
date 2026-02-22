@@ -136,8 +136,6 @@ async function loadItems() {
   }
 }
 
-const GENERIC_DONATION_TITLE = 'Doação Geral para Mobilía/Obras';
-
 function renderItemsTable(items) {
   const wrap = document.getElementById('items-table-wrap');
 
@@ -151,7 +149,7 @@ function renderItemsTable(items) {
 
   const rows = items.map((item) => {
     const isFunded = item.is_funded === 1 || item.is_funded === true;
-    const isGenericDonation = item.title === GENERIC_DONATION_TITLE;
+    const isGenericDonation = item.is_generic === 1 || item.is_generic === true;
     const pct = item.price_total > 0
       ? Math.round((Number(item.price_raised) / Number(item.price_total)) * 100)
       : 0;
@@ -185,13 +183,15 @@ function renderItemsTable(items) {
         </td>
         <td>
           ${isGenericDonation
-            ? '<span style="color:var(--color-text-muted);font-size:var(--text-xs);font-style:italic">Fixo</span>'
+            ? `<div class="admin-table__actions">
+            <button class="btn btn--outline btn--sm" onclick="openEditModal(${item.id})">Editar</button>
+          </div>`
             : `<div class="admin-table__actions">
             <button class="btn btn--outline btn--sm" onclick="openEditModal(${item.id})">Editar</button>
             <button
               class="btn btn--outline btn--sm"
               style="color:var(--color-error);border-color:var(--color-error);"
-              onclick="confirmDeleteItem(${item.id}, '${escHtml(item.title).replace(/'/g, "\\'")}')">  
+              onclick="confirmDeleteItem(${item.id}, '${escHtml(item.title).replace(/'/g, "\\'")}')">
               Eliminar
             </button>
           </div>`
