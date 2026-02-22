@@ -1499,6 +1499,28 @@ h1, h2, h3, h4 {
   flex-wrap: wrap;
 }
 
+.drag-handle {
+  cursor: grab;
+  color: var(--color-text-muted);
+  font-size: 1rem;
+  user-select: none;
+  text-align: center;
+  padding: var(--space-4) var(--space-2);
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.admin-table tr.dragging > td {
+  opacity: 0.35;
+}
+
+.admin-table tr.drag-over > td {
+  background: rgba(168, 184, 154, 0.15) !important;
+  border-top: 2px solid var(--color-accent);
+}
+
 /* =============================================================
    ADMIN — Modal
    ============================================================= */
