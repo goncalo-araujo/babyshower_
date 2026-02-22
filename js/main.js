@@ -385,6 +385,7 @@ function initContributionForm() {
       if (!selectedId) return;
       const selectedItem = giftItems.find(i => i.id === selectedId);
       if (!selectedItem || !selectedItem.price_total) return;
+      if (selectedItem.title === GENERIC_DONATION) return;
       const isItemFunded = selectedItem.is_funded === 1 || selectedItem.is_funded === true;
       if (isItemFunded) return;
       const itemRemaining = Number(selectedItem.price_total) - Number(selectedItem.price_raised);
