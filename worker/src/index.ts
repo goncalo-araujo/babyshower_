@@ -438,7 +438,7 @@ THE NURSERY:
 EVENT DETAILS:
 - Name: Baby Shower da Maria Luísa
 - Date: Saturday, 11 April 2026
-- Time: 15h00 – 19h00
+- Time: A partir das 15h00
 - Venue: Messe Militar de Évora, Évora, Portugal
 - Google Maps: https://maps.google.com?q=Messe+Militar+de+%C3%89vora,+%C3%89vora,+Portugal
 - Directions: Guests should use Google Maps or Waze with "Messe Militar de Évora" as the destination.
