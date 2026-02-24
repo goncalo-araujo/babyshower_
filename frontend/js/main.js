@@ -276,6 +276,10 @@ function createGiftCard(item) {
           <strong>${pct}%</strong>
         </p>
       </div>` : ''}
+      ${isGenericDonation ? `<div class="generic-donation-total" aria-label="Total angariado até ao momento">
+        <span class="generic-donation-total__amount">€${priceRaised.toFixed(2)}</span>
+        <span class="generic-donation-total__label">angariados até ao momento ♥</span>
+      </div>` : ''}
       <div class="gift-card__actions">
         ${viewLink}
         ${contributeBtn}
