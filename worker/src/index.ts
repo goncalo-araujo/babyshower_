@@ -113,7 +113,11 @@ function getIP(request: Request): string {
 async function handleGetItems(env: Env, origin: string): Promise<Response> {
   const { results } = await env.DB.prepare(
     `SELECT * FROM items ORDER BY
-      CASE WHEN is_generic = 1 THEN 999999 ELSE sort_order END ASC,
+      CASE
+        WHEN is_funded = 1 THEN 9999999
+        WHEN is_generic = 1 THEN 9999998
+        ELSE sort_order
+      END ASC,
       id ASC`
   ).all<Item>();
   return jsonResponse(results, 200, origin);
@@ -421,7 +425,11 @@ async function handleChat(
   const { results: items } = await env.DB.prepare(
     `SELECT id, title, description, price_total, price_raised, is_funded, is_generic, product_url
      FROM items ORDER BY
-       CASE WHEN is_generic = 1 THEN 999999 ELSE sort_order END ASC,
+       CASE
+         WHEN is_funded = 1 THEN 9999999
+         WHEN is_generic = 1 THEN 9999998
+         ELSE sort_order
+       END ASC,
        id ASC`
   ).all<Item>();
 

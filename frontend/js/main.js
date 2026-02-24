@@ -165,14 +165,16 @@ async function loadGifts() {
   // Cache items for form hint lookups
   giftItems = items;
 
-  // Sort: generic donation always last (is_generic flag; title match as fallback)
+  // Sort: funded items last, generic donation second-to-last
   const GENERIC_DONATION = 'Doação Geral para Mobília/Obras';
   items.sort((a, b) => {
+    const aFunded = a.is_funded === 1 || a.is_funded === true;
+    const bFunded = b.is_funded === 1 || b.is_funded === true;
     const aG = a.is_generic === 1 || a.is_generic === true || a.title === GENERIC_DONATION;
     const bG = b.is_generic === 1 || b.is_generic === true || b.title === GENERIC_DONATION;
-    if (aG) return 1;
-    if (bG) return -1;
-    return 0;
+    const aScore = aFunded ? 2 : aG ? 1 : 0;
+    const bScore = bFunded ? 2 : bG ? 1 : 0;
+    return aScore - bScore;
   });
 
   items.forEach((item) => {
